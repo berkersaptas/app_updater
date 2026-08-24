@@ -38,10 +38,9 @@ everything.
 **`app_updater`/`ota_runtime_android` distribution across machines is done:**
 `app_updater` is consumed as a `git:` path dependency. Pub retains the complete repository
 checkout, and the plugin compiles the canonical sibling `ota_runtime_android` sources directly.
-The repository is public, so neither the original Git clone nor a secondary dependency download
-requires authentication. The earlier JitPack `GITHUB_TOKEN` requirement was removed on 2026-08-21
-after a clean-machine AAB test exposed the friction. Verified with a real
-`flutter build appbundle --release`.
+The repository is public and the plugin compiles the sibling `ota_runtime_android` sources from the
+same Pub checkout. Installation therefore has no secondary dependency-service setup. This layout
+was verified with a real `flutter build appbundle --release`.
 
 **One-command patch publish (`app_updater_cli`) is done** (2026-08-19): the portal's "upload
 artifact + manifest" flow (and even `scripts/build_patch_for_project.sh` + a hand-written `curl`)
@@ -89,8 +88,9 @@ separate trip to the app's page just to generate a publish key — flagged as st
    `package:args/command_runner.dart`, `_InitCommand`/`_PublishCommand`): given
    `--yaml-file <saved app_updater.yaml>`, it text-edits `pubspec.yaml` (inserts the
    `app_updater` git dependency after the `dependencies:` line), writes the yaml into the
-   project root, originally text-edited `android/build.gradle.kts` (that JitPack step has since
-   been removed), and text-edits `MainActivity.kt` (swaps `: FlutterActivity()` for
+   project root, originally text-edited `android/build.gradle.kts` (that obsolete external
+   repository step has since been removed), and text-edits `MainActivity.kt` (swaps
+   `: FlutterActivity()` for
    `: FlutterOtaActivity()` and fixes the import). These original steps were checked by running
    `init` twice in a row
    against a simulated fresh `flutter create` project (stripped-down `MainActivity.kt`/
@@ -140,9 +140,8 @@ validated manifests using an AES-256-GCM-encrypted per-app RSA key. Migration 00
 managed signers, releases, and release artifacts; the backend now runs tracked migrations on every
 startup so existing Postgres volumes upgrade without reset. Portal-created apps use the same
 managed model. A real temporary Flutter-project run completed login → init → 15.4 MB AAB release →
-binary diff → managed signature → publish. The private JitPack download discovered during this test
-was removed: the git dependency now compiles the canonical sibling runtime sources directly, so
-there is no second GitHub token after the repository itself has been cloned. The same connected
+binary diff → managed signature → publish. The git dependency compiles the canonical sibling
+runtime sources directly from the public repository checkout. The same connected
 release was then installed on a Xiaomi 2211133G (Android 16/API 36, arm64-v8a): launch 1 displayed
 `Hello v1` and staged managed-signing patch 2; launch 2 logged `Verified binary_diff patch 2`,
 displayed `Hello v2`, and persisted state `active`; steady state returned
@@ -306,17 +305,10 @@ permanent per-patch blacklist. Added:
   a possible fast-follow; flag this if it turns out 20s + no forced restart isn't enough in
   practice.
 - `docs/rollback_model.md` updated (was stale — still said "no crash-loop counter... timeout").
-- `ota_runtime_android`'s `version` bumped to `0.1.5` (was `0.1.4`) since this is a real behavior
-  change. **Not yet tagged/pushed as `v0.1.5`** — `app_updater/android/build.gradle.kts` still
-  points at `v0.1.4` on purpose, since tagging+pushing publishes to JitPack (what real devices
-  actually pull) and that's a deliberate, separate step, not bundled into this pass. Verified
-  locally instead: `./gradlew testDebugUnitTest` (19/19 green) plus a full run of
-  `scripts/run_device_acceptance.sh` against a real device, with `app_updater`'s dependency
-  temporarily pointed at the local flat-file Maven repo (`./gradlew publish` inside
-  `ota_runtime_android/`) instead of JitPack so the on-device build actually picked up the new code
-  — all 13 existing scenarios passed unchanged, confirming the new circuit-breaker/watchdog wiring
-  doesn't break anything. That temporary dependency swap was reverted back to the `v0.1.4` JitPack
-  coordinate afterward.
+- The runtime change was verified with `./gradlew testDebugUnitTest` (19/19 green) plus a full run of
+  `scripts/run_device_acceptance.sh` against a real device. All 13 existing scenarios passed,
+  confirming that the circuit-breaker/watchdog wiring does not break the established flow. The
+  runtime is now compiled from the canonical sibling source in the public repository checkout.
 
 **Deliberately still open from this pass:**
 - Real Android API/OEM hardware matrix testing — this pass only verified against the one already-

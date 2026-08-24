@@ -104,7 +104,7 @@ android {
         getByName("main") {
             // The Flutter package is distributed as a git path dependency. Pub keeps the whole
             // repository checkout, so compile the canonical runtime sources directly instead of
-            // making every developer resolve a second JitPack dependency.
+            // requiring a separately published native dependency.
             java.srcDirs(
                 "src/main/kotlin",
                 projectDir.resolve("../../ota_runtime_android/src/main/kotlin"),

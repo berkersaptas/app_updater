@@ -19,7 +19,9 @@ served from the real Dockerized `backend/`, delivered through this exact setup w
 # pubspec.yaml
 dependencies:
   app_updater:
-    path: ../app_updater # or a git/hosted dependency once this lives in its own repo
+    git:
+      url: https://github.com/berkersaptas/app_updater.git
+      path: app_updater
 ```
 
 `app_updater.yaml` (at your Flutter project root, next to `pubspec.yaml`) is the *only* config
@@ -49,8 +51,8 @@ everything `ota_runtime_android` needs (`<meta-data>` entries) into its own mani
 into your app's final manifest. You never write or see that XML. See `sample_app/app_updater.yaml`
 for a real working example (dev keys, local backend).
 
-The git dependency checkout contains the canonical `ota_runtime_android` sources, which the plugin
-compiles directly. There is no second JitPack/Maven credential or app-level repository edit.
+The public git dependency contains the canonical `ota_runtime_android` sources, which the plugin
+compiles directly. No additional package repository or app-level repository edit is required.
 
 ## The one native touch point
 
@@ -112,5 +114,5 @@ counts) for a debug screen or telemetry.
 - Does not eliminate the one native `FlutterOtaActivity` subclass, and cannot, without also forking
   the Flutter engine/CLI the way Shorebird does (explicitly out of scope for this project — see
   `docs/shorebird_alignment.md`).
-- The current distribution is a public git path dependency, so the building machine only needs
-  network access to clone this repository. No GitHub login or JitPack token is required.
+- The current distribution is a public git path dependency. The building machine only needs network
+  access to clone this repository; no additional dependency service must be configured.

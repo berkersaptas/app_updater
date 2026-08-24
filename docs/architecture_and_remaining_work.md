@@ -508,9 +508,9 @@ user feedback that this had to be consumable as a Flutter package, not a raw nat
   `OtaUpdateResult`/`OtaRuntimeStatus` on the Dart side.
 - Done: integration documented in `app_updater/README.md` (the primary guide) and
   `docs/generic_runtime_integration.md` (the underlying contract).
-- Superseded (2026-08-21): no runtime Maven/JitPack distribution is required by the git-installed
-  Flutter plugin. It compiles the canonical sibling `ota_runtime_android` sources from Pub's full
-  repository checkout and resolves only the public `jbsdiff` dependency from Maven Central.
+- Done: no separately published runtime package is required by the git-installed Flutter plugin. It
+  compiles the canonical sibling `ota_runtime_android` sources from Pub's full repository checkout
+  and resolves only the public `jbsdiff` dependency from Maven Central.
 - Done: `scripts/run_binary_diff_acceptance.sh` scripts the `app_updater`-path device
   verification that was manual here (see Phase 2E). `scripts/run_device_acceptance.sh` still
   targets the debug `ContentProvider` directly and is unchanged/unaffected by `app_updater`.

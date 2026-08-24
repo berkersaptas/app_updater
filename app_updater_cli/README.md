@@ -10,7 +10,7 @@ app_updater patch android
 ```
 
 No API key, patch-signing key, hand-written manifest, archived local base APK, or `curl` command is
-required. The CLI keeps a revocable 90-day login token in `~/.app_updater/credentials.json` with
+required. The CLI keeps a revocable 90-day login session in `~/.app_updater/credentials.json` with
 user-only file permissions. The service manages each app's signing key and signs only manifests it
 has validated.
 
@@ -21,8 +21,7 @@ dart pub global activate --source git https://github.com/berkersaptas/app_update
   --git-path app_updater_cli
 ```
 
-The repository is public, so installation does not require a GitHub login or access token. Ensure
-`~/.pub-cache/bin` is on `PATH`.
+The CLI installs directly from the public repository. Ensure `~/.pub-cache/bin` is on `PATH`.
 
 ## First-time setup
 
