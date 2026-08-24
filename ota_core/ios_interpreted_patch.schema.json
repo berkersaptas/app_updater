@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://app_updater.example/ota/ios-interpreted-patch-v1.schema.json",
+  "title": "iOS interpreted Dart patch artifact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_kind",
+    "patch_number",
+    "payload_sha256",
+    "linked_code_metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_kind": {
+      "const": "interpreted_dart_patch",
+      "description": "Shorebird-style iOS patch payload; this is not a dylib/framework replacement contract."
+    },
+    "patch_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "linked_code_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "linked_function_count",
+        "interpreted_function_count",
+        "minimum_link_percentage"
+      ],
+      "properties": {
+        "linked_function_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "interpreted_function_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimum_link_percentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}

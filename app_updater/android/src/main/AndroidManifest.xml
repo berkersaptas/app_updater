@@ -1,0 +1,37 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="com.berkersaptas.app_updater">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application>
+        <!-- Generated at the consuming app's own build time (see android/build.gradle.kts) from
+             <flutter-project-root>/app_updater.yaml — nothing to hand-edit per app or per
+             platform. These merge into the final app manifest and are read at runtime by
+             ota_runtime_android's OtaRuntimeConfig. -->
+        <meta-data
+            android:name="com.berkersaptas.app_updater.ota_runtime.ENGINE_REVISION"
+            android:value="${otaEngineRevision}" />
+        <meta-data
+            android:name="com.berkersaptas.app_updater.ota_runtime.DART_VERSION"
+            android:value="${otaDartVersion}" />
+        <meta-data
+            android:name="com.berkersaptas.app_updater.ota_runtime.BUILD_MODE"
+            android:value="${otaBuildMode}" />
+        <meta-data
+            android:name="com.berkersaptas.app_updater.ota_runtime.SIGNATURE_TRUSTED_KEYS"
+            android:value="${otaSignatureTrustedKeys}" />
+        <meta-data
+            android:name="com.berkersaptas.app_updater.ota_runtime.SIGNATURE_REVOKED_KEY_IDS"
+            android:value="${otaSignatureRevokedKeyIds}" />
+        <meta-data
+            android:name="com.berkersaptas.app_updater.ota_runtime.APP_SLUG"
+            android:value="${otaAppSlug}" />
+        <meta-data
+            android:name="com.berkersaptas.app_updater.ota_runtime.BACKEND_URL"
+            android:value="${otaBackendUrl}" />
+        <provider
+            android:name="com.berkersaptas.app_updater.ota_runtime.OtaInstallProvider"
+            android:authorities="${applicationId}.ota-installer"
+            android:enabled="false"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
+</manifest>

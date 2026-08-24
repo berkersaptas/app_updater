@@ -1,0 +1,11 @@
+schema_version={schema_version}
+release={release}
+patch_number={patch_number}
+artifact_kind={artifact_kind}
+engine_revision={engine_revision}
+dart_version={dart_version}
+abi={abi}
+build_mode={build_mode}
+sha256={sha256}
+signature_key_id={signature_key_id}
+signature_algorithm={signature_algorithm}

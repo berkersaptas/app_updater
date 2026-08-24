@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "release": "1.0.0+1",
+  "patch_number": 1,
+  "artifact_path": "/data/user/0/com.berkersaptas.app_updater_sample/files/ota/patches/1/libapp.so",
+  "sha256": "EXPECTED_SHA256",
+  "engine_revision": "EXPECTED_40_CHAR_ENGINE_REVISION",
+  "dart_version": "3.12.2",
+  "abi": "arm64-v8a",
+  "build_mode": "release",
+  "state": "pending"
+}

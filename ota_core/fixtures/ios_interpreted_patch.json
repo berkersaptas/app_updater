@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "interpreted_dart_patch",
+  "patch_number": 1,
+  "payload_sha256": "0fc5776482c47cdf68b1d6fff40ae1786192ea32fa9628d9d75957737d1178ad",
+  "linked_code_metadata": {
+    "linked_function_count": 9200,
+    "interpreted_function_count": 40,
+    "minimum_link_percentage": 95.0
+  }
+}

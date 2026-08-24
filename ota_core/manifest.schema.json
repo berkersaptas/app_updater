@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://app_updater.example/ota/patch-manifest-v1.schema.json",
+  "title": "OTA patch manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "release",
+    "patch_number",
+    "artifact_kind",
+    "engine_revision",
+    "dart_version",
+    "abi",
+    "build_mode",
+    "sha256",
+    "artifact_size",
+    "signature_key_id",
+    "signature_algorithm",
+    "signature"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "release": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Base application versionName+versionCode, for example 1.0.0+1."
+    },
+    "patch_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "artifact_kind": {
+      "type": "string",
+      "enum": ["full_aot_library", "binary_diff"],
+      "description": "Patch artifact strategy. The POC loads full_aot_library; Shorebird-style Android production should move to binary_diff."
+    },
+    "engine_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "dart_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "abi": {
+      "type": "string",
+      "minLength": 1
+    },
+    "build_mode": {
+      "type": "string",
+      "enum": ["release"]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifact_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Byte size of the uploaded/downloaded artifact file itself (the .diff for binary_diff, the full library for full_aot_library) — not the reconstructed target. A cheap early-fail check before the more expensive SHA-256/reconstruction step."
+    },
+    "signature_key_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "signature_algorithm": {
+      "type": "string",
+      "enum": ["ed25519", "rsa_pkcs1_sha256"]
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "description": "Base64url without padding signature over signing_payload_v1."
+    }
+  }
+}

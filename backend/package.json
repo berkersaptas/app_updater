@@ -1,0 +1,21 @@
+{
+  "name": "app-updater-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "migrate": "node src/migrate.js",
+    "start": "npm run migrate && node src/index.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "bcryptjs": "^2.4.3",
+    "connect-pg-simple": "^10.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-session": "^1.18.1",
+    "multer": "^2.2.0",
+    "pg": "^8.13.1"
+  }
+}

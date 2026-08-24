@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ota
+      POSTGRES_USER: ota
+      POSTGRES_PASSWORD: ota
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ota"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://ota:ota@postgres:5432/ota
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
+      ARTIFACT_STORAGE_DIR: /data/artifacts
+      PORT: 8080
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-me}
+      ALLOW_FULL_AOT_LIBRARY: ${ALLOW_FULL_AOT_LIBRARY:-false}
+      SIGNING_MASTER_KEY: "${SIGNING_MASTER_KEY:-dev-signing-master-key-32-bytes!}"
+    ports:
+      - "${BACKEND_HOST_PORT:-8081}:8080"
+    volumes:
+      - artifacts:/data/artifacts
+
+volumes:
+  pgdata:
+  artifacts:

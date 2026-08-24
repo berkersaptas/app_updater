@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "release": "1.0.0+1",
+  "patch_number": 1,
+  "artifact_kind": "full_aot_library",
+  "engine_revision": "83675ed27633283e7fc296c8bca22e841224c096",
+  "dart_version": "3.12.2",
+  "abi": "arm64-v8a",
+  "build_mode": "release",
+  "sha256": "ec59d1df4b8a03d38eaf99f01a599eb7e2572f4c4f6f694a409e6da2304a9cb7",
+  "artifact_size": 1048576,
+  "signature_key_id": "dev-ed25519-v1",
+  "signature_algorithm": "ed25519",
+  "signature": "0I5uu7ID7zfdDhsIrfnzaSSowGg59r2Jjdq9XkCINUYIW4_udbX-RqG20A4LmyrL5uOe-ZC9dWpdATc8HBneDg"
+}

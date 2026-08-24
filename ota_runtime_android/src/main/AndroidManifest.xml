@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application>
+        <!-- POC-only adb ingress. The shell UID holds DUMP; ordinary apps do not. Hardcoded
+             disabled here (a published artifact must default safe for every consumer); a
+             test/sample app re-enables it explicitly in its own manifest via
+             tools:node="merge" — see sample_app's AndroidManifest.xml. Never a build-time
+             placeholder: that would bake one app's choice into the shared published artifact. -->
+        <provider
+            android:name="com.berkersaptas.app_updater.ota_runtime.OtaInstallProvider"
+            android:authorities="${applicationId}.ota-installer"
+            android:enabled="false"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
+</manifest>

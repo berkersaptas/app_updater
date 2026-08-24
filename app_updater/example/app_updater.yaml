@@ -1,0 +1,6 @@
+# Local-only configuration that keeps the example project buildable.
+# Run `app_updater init` in a real application to generate its managed configuration.
+app_slug: app-updater-example
+backend_url: http://localhost:8080
+trusted_keys: []
+revoked_key_ids: []
