@@ -13,6 +13,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:yaml/yaml.dart';
+import 'package:app_updater_cli/src/artifact_tools.dart';
 import 'package:app_updater_cli/src/connected_workflow.dart';
 
 const _repoUrl = 'https://github.com/berkersaptas/app_updater.git';
@@ -124,7 +125,7 @@ const _dependencyBlock = '  app_updater:\n'
     '    git:\n'
     '      url: $_repoUrl\n'
     '      path: app_updater\n'
-    '      ref: master\n';
+    '      ref: main\n';
 
 void _ensureMainActivity(Directory projectDir) {
   final kotlinDir = Directory('${projectDir.path}/android/app/src/main/kotlin');
@@ -339,13 +340,8 @@ Future<void> _publish(ArgResults args) async {
 
   final outputDir = Directory('${projectDir.path}/build/app_updater_patch')
     ..createSync(recursive: true);
-  final cliDir = File(Platform.script.toFilePath())
-      .parent
-      .parent; // bin/.. -> app_updater_cli package root
-  final scriptsDir = '${cliDir.path}/scripts';
-
   stdout.writeln('==> Building the release APK');
-  await _run(
+  await runInherited(
       'flutter',
       [
         'build',
@@ -362,29 +358,22 @@ Future<void> _publish(ArgResults args) async {
   if (!apk.existsSync()) throw 'Expected APK not found: ${apk.path}';
 
   stdout.writeln('==> Extracting libapp.so');
-  await _run('bash',
-      ['$scriptsDir/extract_artifacts.sh', apk.path, abi, outputDir.path]);
+  await extractLibapp(apk, abi, outputDir);
 
   File? baseLibappSo;
   if (artifactKind == 'binary_diff') {
     final baseApk = File(baseApkPath!);
     stdout.writeln('==> Verifying this is a Dart-only patch');
-    await _run('bash',
-        ['$scriptsDir/verify_dart_only_patch.sh', baseApk.path, apk.path, abi]);
+    await verifyDartOnlyPatch(baseApk, apk, abi);
     final baseOutputDir = Directory('${outputDir.path}/base')
       ..createSync(recursive: true);
     stdout.writeln('==> Extracting the shipped base libapp.so');
-    await _run('bash', [
-      '$scriptsDir/extract_artifacts.sh',
-      baseApk.path,
-      abi,
-      baseOutputDir.path
-    ]);
+    await extractLibapp(baseApk, abi, baseOutputDir);
     baseLibappSo = File('${baseOutputDir.path}/libapp.so');
   }
 
   stdout.writeln('==> Reading compatibility metadata');
-  final versionJson = jsonDecode((await _capture(
+  final versionJson = jsonDecode((await captureText(
       'flutter', ['--version', '--machine'],
       cwd: projectDir.path)));
   final engineRevision = versionJson['engineRevision'] as String;
@@ -399,13 +388,11 @@ Future<void> _publish(ArgResults args) async {
   if (artifactKind == 'binary_diff') {
     stdout.writeln('==> Computing a binary diff against the base artifact');
     final diffPath = '${outputDir.path}/libapp.so.diff';
-    await _run('bash', [
-      '$scriptsDir/generate_binary_diff.sh',
-      baseLibappSo!.path,
-      libappSo.path,
-      diffPath
-    ]);
-    uploadedArtifact = File(diffPath);
+    uploadedArtifact = await generateBinaryDiff(
+      baseLibappSo!,
+      libappSo,
+      File(diffPath),
+    );
   } else {
     uploadedArtifact = libappSo;
   }
@@ -413,21 +400,20 @@ Future<void> _publish(ArgResults args) async {
 
   stdout.writeln('==> Signing the manifest');
   final payloadFile = File('${outputDir.path}/patch_payload.txt');
-  await _run('bash', [
-    '$scriptsDir/write_manifest_payload.sh',
-    payloadFile.path,
-    '1',
-    release,
-    '$patchNumber',
-    artifactKind,
-    engineRevision,
-    dartVersion,
-    abi,
-    buildMode,
-    hash,
-    keyId,
-    algorithm,
-  ]);
+  writeManifestPayload(
+    payloadFile,
+    schemaVersion: 1,
+    release: release,
+    patchNumber: patchNumber,
+    artifactKind: artifactKind,
+    engineRevision: engineRevision,
+    dartVersion: dartVersion,
+    abi: abi,
+    buildMode: buildMode,
+    sha256Hash: hash,
+    signatureKeyId: keyId,
+    signatureAlgorithm: algorithm,
+  );
   final signature = await _sign(payloadFile, privateKey, algorithm);
   payloadFile.deleteSync();
 
@@ -496,7 +482,7 @@ Future<String> _sign(
     File payloadFile, File privateKey, String algorithm) async {
   final List<int> raw;
   if (algorithm == 'ed25519') {
-    raw = await _captureBytes('openssl', [
+    raw = await captureBinary('openssl', [
       'pkeyutl',
       '-sign',
       '-rawin',
@@ -506,7 +492,7 @@ Future<String> _sign(
       payloadFile.path
     ]);
   } else {
-    raw = await _captureBytes('openssl', [
+    raw = await captureBinary('openssl', [
       'dgst',
       '-sha256',
       '-sign',
@@ -516,27 +502,4 @@ Future<String> _sign(
     ]);
   }
   return base64Url.encode(raw).replaceAll('=', '');
-}
-
-Future<void> _run(String executable, List<String> args, {String? cwd}) async {
-  final process = await Process.start(executable, args,
-      workingDirectory: cwd, mode: ProcessStartMode.inheritStdio);
-  final code = await process.exitCode;
-  if (code != 0) throw '$executable ${args.join(' ')} exited with $code';
-}
-
-Future<String> _capture(String executable, List<String> args,
-    {String? cwd}) async {
-  final result = await Process.run(executable, args, workingDirectory: cwd);
-  if (result.exitCode != 0)
-    throw '$executable ${args.join(' ')} exited with ${result.exitCode}: ${result.stderr}';
-  return result.stdout as String;
-}
-
-Future<List<int>> _captureBytes(String executable, List<String> args) async {
-  final result = await Process.run(executable, args,
-      stdoutEncoding: null, stderrEncoding: utf8);
-  if (result.exitCode != 0)
-    throw '$executable ${args.join(' ')} exited with ${result.exitCode}: ${result.stderr}';
-  return result.stdout as List<int>;
 }

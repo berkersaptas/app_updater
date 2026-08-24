@@ -12,6 +12,12 @@ docker compose up -d --build
 curl http://localhost:8081/healthz
 ```
 
+PowerShell health check:
+
+```powershell
+Invoke-WebRequest http://localhost:8081/healthz
+```
+
 The backend runs numbered database migrations automatically on startup, including for an existing
 Postgres volume. Before production, set strong values for `SESSION_SECRET`, `ADMIN_API_KEY`, and
 the exactly 32-byte `SIGNING_MASTER_KEY`; use HTTPS and durable database/artifact backups. The
@@ -21,10 +27,12 @@ compose defaults are development-only.
 
 Install once:
 
-```bash
-dart pub global activate --source git https://github.com/berkersaptas/app_updater.git \
-  --git-path app_updater_cli
+```text
+dart pub global activate --source git https://github.com/berkersaptas/app_updater.git --git-path app_updater_cli
 ```
+
+The connected CLI workflow is native on Windows, macOS, and Linux. Windows requires Flutter, Git,
+Android SDK, and a JDK on `PATH`; it does not require WSL or Git Bash.
 
 Register an email/password account at `http://localhost:8081/`, then from the Flutter project:
 

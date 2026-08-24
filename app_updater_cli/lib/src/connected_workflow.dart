@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:yaml/yaml.dart';
+import 'package:app_updater_cli/src/artifact_tools.dart';
 
 class _Credentials {
   const _Credentials(this.backendUrl, this.token, this.email);
@@ -246,11 +247,8 @@ abstract class _AndroidCommand extends Command<void> {
   }
 
   Future<Map<String, dynamic>> toolchain(Directory project) async =>
-      jsonDecode(await _capture('flutter', ['--version', '--machine'],
+      jsonDecode(await captureText('flutter', ['--version', '--machine'],
           cwd: project.path)) as Map<String, dynamic>;
-
-  String scriptsDir() =>
-      '${File(Platform.script.toFilePath()).parent.parent.path}/scripts';
 }
 
 class _ReleaseAndroidCommand extends _AndroidCommand {
@@ -268,7 +266,7 @@ class _ReleaseAndroidCommand extends _AndroidCommand {
     final release = releaseVersion(projectDir);
     final selectedAbi = abi(args);
     stdout.writeln('==> Building Play release AAB');
-    await _run(
+    await runInherited(
         'flutter',
         [
           'build',
@@ -286,12 +284,7 @@ class _ReleaseAndroidCommand extends _AndroidCommand {
     final validationDir = Directory(
         '${projectDir.path}/build/app_updater_release/$release/$selectedAbi')
       ..createSync(recursive: true);
-    await _run('bash', [
-      '${scriptsDir()}/extract_artifacts.sh',
-      aab.path,
-      selectedAbi,
-      validationDir.path
-    ]);
+    await extractLibapp(aab, selectedAbi, validationDir);
     final metadata = await toolchain(projectDir);
     final commit = await _captureOrEmpty('git', ['rev-parse', 'HEAD'],
         cwd: projectDir.path);
@@ -345,7 +338,7 @@ class _PatchAndroidCommand extends _AndroidCommand {
     baseAab.writeAsBytesSync(download.bodyBytes);
 
     stdout.writeln('==> Building patch candidate AAB');
-    await _run(
+    await runInherited(
         'flutter',
         [
           'build',
@@ -359,36 +352,19 @@ class _PatchAndroidCommand extends _AndroidCommand {
         cwd: projectDir.path);
     final patchAab = File(
         '${projectDir.path}/build/app/outputs/bundle/release/app-release.aab');
-    final scripts = scriptsDir();
-    await _run('bash', [
-      '$scripts/verify_dart_only_patch.sh',
-      baseAab.path,
-      patchAab.path,
-      selectedAbi
-    ]);
+    await verifyDartOnlyPatch(baseAab, patchAab, selectedAbi);
     final baseDir = Directory('${outputDir.path}/base')
       ..createSync(recursive: true);
     final patchDir = Directory('${outputDir.path}/candidate')
       ..createSync(recursive: true);
-    await _run('bash', [
-      '$scripts/extract_artifacts.sh',
-      baseAab.path,
-      selectedAbi,
-      baseDir.path
-    ]);
-    await _run('bash', [
-      '$scripts/extract_artifacts.sh',
-      patchAab.path,
-      selectedAbi,
-      patchDir.path
-    ]);
+    await extractLibapp(baseAab, selectedAbi, baseDir);
+    await extractLibapp(patchAab, selectedAbi, patchDir);
     final diff = File('${outputDir.path}/libapp.so.diff');
-    await _run('bash', [
-      '$scripts/generate_binary_diff.sh',
-      '${baseDir.path}/libapp.so',
-      '${patchDir.path}/libapp.so',
-      diff.path
-    ]);
+    await generateBinaryDiff(
+      File('${baseDir.path}/libapp.so'),
+      File('${patchDir.path}/libapp.so'),
+      diff,
+    );
     final target = File('${patchDir.path}/libapp.so');
     final metadata = await toolchain(projectDir);
     final unsignedManifest = {
@@ -419,26 +395,10 @@ class _PatchAndroidCommand extends _AndroidCommand {
   }
 }
 
-Future<void> _run(String executable, List<String> arguments,
-    {String? cwd}) async {
-  final process = await Process.start(executable, arguments,
-      workingDirectory: cwd, mode: ProcessStartMode.inheritStdio);
-  final code = await process.exitCode;
-  if (code != 0) throw '$executable ${arguments.join(' ')} exited with $code';
-}
-
-Future<String> _capture(String executable, List<String> arguments,
-    {String? cwd}) async {
-  final result =
-      await Process.run(executable, arguments, workingDirectory: cwd);
-  if (result.exitCode != 0) throw '$executable failed: ${result.stderr}';
-  return result.stdout as String;
-}
-
 Future<String> _captureOrEmpty(String executable, List<String> arguments,
     {String? cwd}) async {
   try {
-    return await _capture(executable, arguments, cwd: cwd);
+    return await captureText(executable, arguments, cwd: cwd);
   } catch (_) {
     return '';
   }

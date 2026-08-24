@@ -1,8 +1,6 @@
 name: app_updater_cli
 description: >
-  One-command build, sign, and upload of app_updater OTA patches for any Flutter project. Wraps the
-  same steps as scripts/build_patch_for_project.sh in this repo, but installable and runnable from
-  inside a company app's own repo, without cloning this infra repo.
+  Cross-platform build and upload CLI for app_updater OTA releases and Dart-only Flutter patches.
 version: 0.1.0
 publish_to: 'none'
 homepage: https://github.com/berkersaptas/app_updater
@@ -17,6 +15,10 @@ dependencies:
   http: ^1.2.2
   http_parser: ^4.0.2
   crypto: ^3.0.5
+  path: ^1.9.0
 
 executables:
   app_updater:
+
+dev_dependencies:
+  test: ^1.25.0

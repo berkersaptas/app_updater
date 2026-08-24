@@ -16,12 +16,39 @@ has validated.
 
 ## Install
 
-```bash
-dart pub global activate --source git https://github.com/berkersaptas/app_updater.git \
-  --git-path app_updater_cli
+```text
+dart pub global activate --source git https://github.com/berkersaptas/app_updater.git --git-path app_updater_cli
 ```
 
-The CLI installs directly from the public repository. Ensure `~/.pub-cache/bin` is on `PATH`.
+The CLI installs directly from the public repository. Add `$HOME/.pub-cache/bin` to `PATH` on
+macOS/Linux, or `%LOCALAPPDATA%\Pub\Cache\bin` on Windows.
+
+## Platform support
+
+The recommended `login`, `init`, `release android`, and `patch android` workflow runs natively on
+Windows, macOS, and Linux. It uses Dart for archive comparison and manifest generation, and the JDK
+for ZIP/AAB extraction and binary-diff generation. Windows does not need Bash, WSL, `curl`,
+`unzip`, `diff`, or `shasum`.
+
+Required tools:
+
+```text
+flutter --version
+dart --version
+git --version
+java -version
+jar --version
+flutter doctor
+```
+
+On Windows, Flutter is invoked through `flutter.bat`, Java classpaths use `;`, the diff cache lives
+under `%LOCALAPPDATA%\app_updater\cache\jbsdiff`, and CLI credentials live under
+`%USERPROFILE%\.app_updater\credentials.json`.
+
+Repository maintainers can verify the Windows CLI, Flutter packages, and Android runtime from
+PowerShell with `..\scripts\verify_windows_cli.ps1`.
+The `CLI cross-platform` GitHub Actions workflow runs the CLI suite on Windows, macOS, and Linux for
+every relevant push and pull request.
 
 ## First-time setup
 
@@ -39,10 +66,8 @@ app_updater init --app-slug my-app-android
 
 If the app does not exist yet, create it without opening another portal page:
 
-```bash
-app_updater init --create \
-  --app-slug my-app-android \
-  --package-name com.example.my_app
+```text
+app_updater init --create --app-slug my-app-android --package-name com.example.my_app
 ```
 
 `init` writes the public runtime configuration, adds the Flutter dependency, switches
@@ -95,5 +120,5 @@ signature and displayed `Hello v2` with runtime state `active`.
 `app_updater publish` remains for existing installations that manage their own private signing key,
 app-scoped publish key, and archived APK. New apps should use `release android` and `patch android`.
 
-The shell helpers under `scripts/` are bundled so a globally activated CLI does not depend on a
-checkout of this infrastructure repository.
+The legacy command is also shell-independent, but local signing requires `openssl` to be installed
+on every operating system. The recommended managed-signing workflow does not require OpenSSL.

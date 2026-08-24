@@ -50,9 +50,9 @@ real company developer, that was never going to happen. `app_updater_cli/` is a 
 providing `app_updater publish`: run from inside the app's own repo, it builds the release APK,
 extracts (and diffs, for `binary_diff`) `libapp.so`, signs the manifest, and uploads it — patch
 number and signing key auto-detected from `app_updater.yaml` and the backend when there's only
-one sensible choice. Bundles its own copies of the small shell helpers
-(`extract_artifacts.sh`/`generate_binary_diff.sh`/`write_manifest_payload.sh`) so it's fully
-self-contained after global activation on a machine that never clones this infra repo. This is the
+one sensible choice. The current implementation performs archive inspection, Dart-only comparison,
+manifest generation, and binary-diff orchestration through Dart and the JDK, so it runs natively on
+Windows, macOS, and Linux after global activation. This is the
 closest analog to Shorebird's own `shorebird patch` UX. See `app_updater_cli/README.md`. Verified end
 to end against a live Docker backend: registered a fresh app + RSA key via the admin API, ran
 `app_updater publish` from a copy of `sample_app` outside this repo (pointed at the plugin via an

@@ -1,0 +1,9 @@
+# Keep platform launchers usable regardless of the contributor's core.autocrlf setting.
+*.sh text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary Android and image artifacts must never be line-ending normalized.
+*.jar binary
+*.png binary

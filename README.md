@@ -12,10 +12,8 @@ This guide starts from a developer machine where App Updater has never been inst
 `app_updater` is not an operating-system command. It is the executable exposed by the Dart CLI
 package in this repository. Install it once:
 
-```bash
-dart pub global activate \
-  --source git https://github.com/berkersaptas/app_updater.git \
-  --git-path app_updater_cli
+```text
+dart pub global activate --source git https://github.com/berkersaptas/app_updater.git --git-path app_updater_cli
 ```
 
 The repository is public and installs directly. No additional dependency service or repository
@@ -67,13 +65,16 @@ applications should use `login`, `init`, `release`, and `patch`.
 
 ## 2. Prerequisites
 
-Flutter includes the Dart SDK. Install the standard Flutter Android toolchain, then check it with:
+Flutter includes the Dart SDK. Install Flutter, Git, Android Studio/Android SDK, and a JDK. The
+normal `login`, `init`, `release`, and `patch` flow does not require Bash, WSL, `curl`, `unzip`, or
+other Unix tools. Check the toolchain with:
 
 ```bash
 flutter --version
 dart --version
 git --version
 java -version
+jar --version
 flutter doctor
 ```
 
@@ -114,11 +115,8 @@ cd /path/to/my_flutter_app
 
 Create the application in the backend and connect the project:
 
-```bash
-app_updater init \
-  --create \
-  --app-slug my-app-android \
-  --package-name com.company.my_app
+```text
+app_updater init --create --app-slug my-app-android --package-name com.company.my_app
 ```
 
 If the application already exists or a teammate has granted access:
@@ -281,10 +279,8 @@ A new store release does not require resetting App Updater or onboarding the app
 
 Once per development machine:
 
-```bash
-dart pub global activate \
-  --source git https://github.com/berkersaptas/app_updater.git \
-  --git-path app_updater_cli
+```text
+dart pub global activate --source git https://github.com/berkersaptas/app_updater.git --git-path app_updater_cli
 app_updater login --backend-url https://updates.example.com
 ```
 
@@ -331,6 +327,14 @@ app_updater release android
 ## Maintainer acceptance tests
 
 The provider, rollback, and device lifecycle suite is intended for repository maintainers:
+These repository-level acceptance helpers are Bash scripts; on Windows, run them from WSL or Git
+Bash. Application developers do not need these scripts for `release` or `patch`.
+
+Windows maintainers can run the native CLI/plugin/runtime verification suite from PowerShell:
+
+```powershell
+.\scripts\verify_windows_cli.ps1
+```
 
 ```bash
 ./scripts/run_device_acceptance.sh
