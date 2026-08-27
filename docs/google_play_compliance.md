@@ -46,13 +46,14 @@ publisher remains responsible for each app and every patch.
    `--base-apk`; it is not the recommended connected workflow.
 7. `full_aot_library` requires two deliberate local-POC opt-ins: the CLI flag
    `--allow-full-aot-library` and backend environment variable `ALLOW_FULL_AOT_LIBRARY=true`.
-8. Runtime signature, artifact hash, release, Flutter engine, Dart SDK, ABI, and build-mode checks
-   remain mandatory and fail closed.
+8. Backend and runtime exact-build checks (`base_sha256` plus protocol/release/engine/Dart/ABI/
+   build-mode fingerprint), signature, and target artifact hash remain mandatory and fail closed.
 
 ## Release artifact custody
 
-The backend stores the exact AAB, SHA-256, source commit, Flutter engine revision, Dart version, and
-ABI registered by `app_updater release android`. Release artifacts are immutable: do not rebuild a base
+The backend stores the exact AAB, AAB SHA-256, base `libapp.so` SHA-256, build fingerprint, source
+commit, Flutter engine revision, Dart version, and ABI registered by `app_updater release android`.
+Release artifacts are immutable: do not rebuild a base
 later from a tag and assume it is byte-identical. Production storage must be durable and backed up.
 Legacy `app_updater publish` users remain responsible for equivalent immutable APK custody.
 

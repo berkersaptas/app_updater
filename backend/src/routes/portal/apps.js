@@ -8,23 +8,60 @@ import { hashApiKey } from '../../middleware/adminAuth.js';
 import { ingestPatch, PatchIngestError } from '../../patchIngest.js';
 import { renderPage, escapeHtml } from '../../views/layout.js';
 import { provisionManagedApp } from '../../appProvisioning.js';
+import {
+  APP_LOGO_FIELD,
+  APP_LOGO_MAX_BYTES,
+  AppLogoError,
+  appLogoAbsolutePath,
+  deleteAppLogo,
+  findAppLogo,
+  saveAppLogo,
+} from '../../appLogo.js';
 
 export const portalAppsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: APP_LOGO_MAX_BYTES } });
 const _cliGitUrl = 'https://github.com/berkersaptas/app_updater.git';
+
+function appMark(app, size = 'small') {
+  const label = escapeHtml(app.slug.slice(0, 1).toUpperCase());
+  const className = size === 'large' ? 'app-logo app-logo-large' : 'app-logo';
+  if (app.has_logo) {
+    const params = new URLSearchParams();
+    if (size === 'small') params.set('size', 'thumbnail');
+    if (app.logo_sha256) params.set('v', app.logo_sha256);
+    const suffix = params.size ? `?${params}` : '';
+    return `<img class="${className}" src="/apps/${escapeHtml(app.slug)}/logo${suffix}" alt="${escapeHtml(app.slug)} logo">`;
+  }
+  return `<span class="${className} app-logo-fallback" aria-hidden="true">${label}</span>`;
+}
+
+function receivePortalLogo(req, res, next) {
+  logoUpload.single(APP_LOGO_FIELD)(req, res, (error) => {
+    if (!error) return next();
+    const tooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).send(renderPage(
+      'Logo upload failed',
+      `<p class="error">${tooLarge ? 'Logo must be 2 MB or smaller.' : 'Invalid logo upload.'}</p><p><a href="/apps/${escapeHtml(req.params.appSlug)}">Back</a></p>`,
+      { user: req.user },
+    ));
+  });
+}
 
 portalAppsRouter.use(asyncHandler(requireUser));
 
 portalAppsRouter.get('/', asyncHandler(async (req, res) => {
   const result = await query(
-    `select a.slug, a.package_name, m.role
+    `select a.slug, a.package_name, m.role, aa.sha256 as logo_sha256,
+            (aa.id is not null) as has_logo
      from apps a join app_members m on m.app_id = a.id
+     left join app_assets aa on aa.app_id = a.id and aa.kind = 'logo'
      where m.user_id = $1 order by a.created_at`,
     [req.user.id],
   );
   const rows = result.rows.map((app) => `
     <tr>
-      <td><a href="/apps/${escapeHtml(app.slug)}">${escapeHtml(app.slug)}</a></td>
+      <td><a class="app-link" href="/apps/${escapeHtml(app.slug)}">${appMark(app)}<span>${escapeHtml(app.slug)}</span></a></td>
       <td>${escapeHtml(app.package_name)}</td>
       <td>${escapeHtml(app.role)}</td>
     </tr>`).join('');
@@ -74,6 +111,9 @@ app_updater patch android</pre>
 }));
 
 portalAppsRouter.get('/:appSlug', asyncHandler(requireAppMember('member')), asyncHandler(async (req, res) => {
+  const logo = await findAppLogo(req.appRow.id);
+  req.appRow.has_logo = Boolean(logo);
+  req.appRow.logo_sha256 = logo?.sha256;
   const membersResult = await query(
     `select u.id, u.email, m.role from app_members m join users u on u.id = m.user_id
      where m.app_id = $1 order by m.created_at`,
@@ -122,6 +162,22 @@ portalAppsRouter.get('/:appSlug', asyncHandler(requireAppMember('member')), asyn
     </tr>`).join('');
 
   res.send(renderPage(req.appRow.slug, `
+    <section class="app-profile">
+      ${appMark(req.appRow, 'large')}
+      <div>
+        <h2>${escapeHtml(req.appRow.slug)}</h2>
+        <p class="muted">${escapeHtml(req.appRow.package_name)}</p>
+      </div>
+    </section>
+    ${req.membership.role === 'owner' ? `
+      <form method="post" action="/apps/${escapeHtml(req.appRow.slug)}/logo" enctype="multipart/form-data">
+        <label>App logo <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" required></label>
+        <button type="submit">${logo ? 'Replace logo' : 'Upload logo'}</button>
+      </form>
+      <p class="muted">PNG, JPEG or WebP; at least 128×128 pixels; maximum 2 MB.</p>
+      ${logo ? `<form class="inline" method="post" action="/apps/${escapeHtml(req.appRow.slug)}/logo/delete"><button type="submit">Remove logo</button></form>` : ''}
+    ` : ''}
+
     <h2>Members</h2>
     <table><tr><th>Email</th><th>Role</th><th></th></tr>${memberRows}</table>
     ${req.membership.role === 'owner' ? `
@@ -148,6 +204,45 @@ portalAppsRouter.get('/:appSlug', asyncHandler(requireAppMember('member')), asyn
       <button type="submit">Upload patch</button>
     </form>
   `, { user: req.user }));
+}));
+
+portalAppsRouter.get('/:appSlug/logo', asyncHandler(requireAppMember('member')), asyncHandler(async (req, res) => {
+  const asset = await findAppLogo(req.appRow.id);
+  if (!asset) return res.status(404).send('Logo not found');
+  const etag = `"${asset.sha256}-${req.query.size === 'thumbnail' ? '64' : '256'}"`;
+  if (req.get('if-none-match') === etag) return res.status(304).end();
+  res.set({
+    'Cache-Control': 'private, max-age=86400',
+    'Content-Type': asset.mime_type,
+    ETag: etag,
+  });
+  res.sendFile(appLogoAbsolutePath(asset, req.query.size === 'thumbnail'));
+}));
+
+portalAppsRouter.post(
+  '/:appSlug/logo',
+  asyncHandler(requireAppMember('owner')),
+  receivePortalLogo,
+  asyncHandler(async (req, res) => {
+    try {
+      await saveAppLogo(req.appRow, req.file?.buffer);
+      res.redirect(303, `/apps/${req.appRow.slug}`);
+    } catch (error) {
+      if (error instanceof AppLogoError) {
+        return res.status(error.status).send(renderPage(
+          'Logo upload failed',
+          `<p class="error">${escapeHtml(error.message)}</p><p><a href="/apps/${escapeHtml(req.appRow.slug)}">Back</a></p>`,
+          { user: req.user },
+        ));
+      }
+      throw error;
+    }
+  }),
+);
+
+portalAppsRouter.post('/:appSlug/logo/delete', asyncHandler(requireAppMember('owner')), asyncHandler(async (req, res) => {
+  await deleteAppLogo(req.appRow.id);
+  res.redirect(303, `/apps/${req.appRow.slug}`);
 }));
 
 portalAppsRouter.post('/:appSlug/members', asyncHandler(requireAppMember('owner')), asyncHandler(async (req, res) => {

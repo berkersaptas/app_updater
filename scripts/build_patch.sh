@@ -44,17 +44,23 @@ artifact_kind="${OTA_ARTIFACT_KIND:-full_aot_library}"
 signing_key_path="${OTA_SIGNING_KEY_PATH:-$repo_dir/keys/${signature_key_id}_private.pem}"
 release="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -1)"
 hash="$(awk '{print $1}' "$artifact_dir/libapp.so.sha256")"
+ota_protocol_version=2
+base_artifact="$repo_dir/patch_artifacts/base/libapp.so"
+[[ -f "$base_artifact" ]] || {
+  echo "Missing exact base artifact: $base_artifact" >&2
+  echo "Build/archive the market base with scripts/build_base.sh before creating any patch" >&2
+  exit 1
+}
+base_sha256="$(shasum -a 256 "$base_artifact" | awk '{print $1}')"
+build_fingerprint="$(
+  "$repo_dir/scripts/compute_build_fingerprint.sh" "$ota_protocol_version" "$release" \
+    "$engine_revision" "$dart_version" "$abi" "$build_mode" "$base_sha256"
+)"
 [[ "$artifact_kind" =~ ^(full_aot_library|binary_diff)$ ]] || {
   echo "Invalid OTA_ARTIFACT_KIND: $artifact_kind" >&2
   exit 2
 }
 if [[ "$artifact_kind" == binary_diff ]]; then
-  base_artifact="$repo_dir/patch_artifacts/base/libapp.so"
-  [[ -f "$base_artifact" ]] || {
-    echo "Missing base artifact for binary_diff: $base_artifact" >&2
-    echo "Run scripts/build_base.sh first" >&2
-    exit 1
-  }
   "$repo_dir/scripts/generate_binary_diff.sh" "$base_artifact" "$artifact_dir/libapp.so" \
     "$artifact_dir/libapp.so.diff"
 fi
@@ -66,8 +72,9 @@ artifact_size="$(wc -c < "$uploaded_artifact" | tr -d ' ')"
   exit 2
 }
 payload="$artifact_dir/patch_payload.txt"
-"$repo_dir/scripts/write_manifest_payload.sh" "$payload" 1 "$release" "$patch_number" \
-  "$artifact_kind" "$engine_revision" "$dart_version" "$abi" "$build_mode" "$hash" \
+"$repo_dir/scripts/write_manifest_payload.sh" "$payload" 2 "$ota_protocol_version" "$release" "$patch_number" \
+  "$artifact_kind" "$engine_revision" "$dart_version" "$abi" "$build_mode" \
+  "$base_sha256" "$build_fingerprint" "$hash" \
   "$signature_key_id" "$signature_algorithm"
 if [[ -n "${OTA_SIGN_CMD:-}" ]]; then
   signature="$(
@@ -104,8 +111,8 @@ fi
   exit 1
 }
 rm -f "$payload"
-printf '{\n  "schema_version": 1,\n  "release": "%s",\n  "patch_number": %s,\n  "artifact_kind": "%s",\n  "engine_revision": "%s",\n  "dart_version": "%s",\n  "abi": "%s",\n  "build_mode": "%s",\n  "sha256": "%s",\n  "artifact_size": %s,\n  "signature_key_id": "%s",\n  "signature_algorithm": "%s",\n  "signature": "%s"\n}\n' \
-  "$release" "$patch_number" "$artifact_kind" "$engine_revision" "$dart_version" "$abi" \
-  "$build_mode" "$hash" "$artifact_size" "$signature_key_id" "$signature_algorithm" "$signature" \
+printf '{\n  "schema_version": 2,\n  "ota_protocol_version": %s,\n  "release": "%s",\n  "patch_number": %s,\n  "artifact_kind": "%s",\n  "engine_revision": "%s",\n  "dart_version": "%s",\n  "abi": "%s",\n  "build_mode": "%s",\n  "base_sha256": "%s",\n  "build_fingerprint": "%s",\n  "sha256": "%s",\n  "artifact_size": %s,\n  "signature_key_id": "%s",\n  "signature_algorithm": "%s",\n  "signature": "%s"\n}\n' \
+  "$ota_protocol_version" "$release" "$patch_number" "$artifact_kind" "$engine_revision" "$dart_version" "$abi" \
+  "$build_mode" "$base_sha256" "$build_fingerprint" "$hash" "$artifact_size" "$signature_key_id" "$signature_algorithm" "$signature" \
   > "$artifact_dir/patch_manifest.json"
 echo "manifest: $artifact_dir/patch_manifest.json"

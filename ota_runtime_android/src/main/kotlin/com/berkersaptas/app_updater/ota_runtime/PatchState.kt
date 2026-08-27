@@ -22,6 +22,9 @@ internal data class PatchState(
     val signatureAlgorithm: String,
     val signature: String,
     val state: String,
+    val otaProtocolVersion: Int = OtaManifestContract.OTA_PROTOCOL_VERSION,
+    val baseSha256: String = "0".repeat(64),
+    val buildFingerprint: String = "0".repeat(64),
     val failureReason: String? = null,
 ) {
     fun withStatus(status: String, reason: String? = null) = copy(
@@ -32,6 +35,7 @@ internal data class PatchState(
 
     fun toJson() = JSONObject().apply {
         put("schema_version", schemaVersion)
+        put("ota_protocol_version", otaProtocolVersion)
         put("enabled", enabled)
         put("release", release)
         put("patch_number", patchNumber)
@@ -43,6 +47,8 @@ internal data class PatchState(
         put("dart_version", dartVersion)
         put("abi", abi)
         put("build_mode", buildMode)
+        put("base_sha256", baseSha256)
+        put("build_fingerprint", buildFingerprint)
         put("signature_key_id", signatureKeyId)
         put("signature_algorithm", signatureAlgorithm)
         put("signature", signature)
@@ -90,6 +96,9 @@ internal data class PatchState(
                 dartVersion = json.getString("dart_version"),
                 abi = json.getString("abi"),
                 buildMode = json.getString("build_mode"),
+                otaProtocolVersion = json.getInt("ota_protocol_version"),
+                baseSha256 = json.getString("base_sha256").lowercase(),
+                buildFingerprint = json.getString("build_fingerprint").lowercase(),
                 signatureKeyId = json.getString("signature_key_id"),
                 signatureAlgorithm = json.getString("signature_algorithm"),
                 signature = json.getString("signature"),

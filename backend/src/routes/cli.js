@@ -10,10 +10,19 @@ import { cliAuth, newCliToken, tokenHash } from '../middleware/cliAuth.js';
 import { provisionManagedApp, appYaml } from '../appProvisioning.js';
 import { config } from '../config.js';
 import { signManifestWithManagedKey } from '../managedSigner.js';
+import { computeBuildFingerprint, SUPPORTED_OTA_PROTOCOL_VERSION } from '../requestValidation.js';
 import { ingestPatch, PatchIngestError } from '../patchIngest.js';
+import {
+  APP_LOGO_FIELD,
+  APP_LOGO_MAX_BYTES,
+  AppLogoError,
+  deleteAppLogo,
+  saveAppLogo,
+} from '../appLogo.js';
 
 export const cliRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
+const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: APP_LOGO_MAX_BYTES } });
 const releaseVersionPattern = /^[A-Za-z0-9._+-]+$/;
 const supportedAbis = new Set(['arm64-v8a', 'armeabi-v7a', 'x86_64']);
 
@@ -96,6 +105,39 @@ cliRouter.get('/apps/:appSlug/config', asyncHandler(async (req, res) => {
   res.json({ app, yaml: appYaml({ ...app, ...key }, `${req.protocol}://${req.get('host')}`) });
 }));
 
+cliRouter.put(
+  '/apps/:appSlug/logo',
+  (req, res, next) => logoUpload.single(APP_LOGO_FIELD)(req, res, (error) => {
+    if (!error) return next();
+    const status = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({ error: status === 413 ? 'Logo must be 2 MB or smaller' : 'Invalid logo upload' });
+  }),
+  asyncHandler(async (req, res) => {
+    const app = await memberApp(req, res, 'owner');
+    if (!app) return;
+    try {
+      const asset = await saveAppLogo(app, req.file?.buffer);
+      res.json({
+        sha256: asset.sha256,
+        mime_type: asset.mime_type,
+        width: asset.width,
+        height: asset.height,
+        logo_url: `/apps/${encodeURIComponent(app.slug)}/logo?v=${asset.sha256}`,
+      });
+    } catch (error) {
+      if (error instanceof AppLogoError) return res.status(error.status).json({ error: error.message });
+      throw error;
+    }
+  }),
+);
+
+cliRouter.delete('/apps/:appSlug/logo', asyncHandler(async (req, res) => {
+  const app = await memberApp(req, res, 'owner');
+  if (!app) return;
+  await deleteAppLogo(app.id);
+  res.status(204).end();
+}));
+
 cliRouter.post('/apps/:appSlug/releases', upload.single('artifact'), asyncHandler(async (req, res) => {
   const app = await memberApp(req, res);
   if (!app) return;
@@ -104,13 +146,33 @@ cliRouter.post('/apps/:appSlug/releases', upload.single('artifact'), asyncHandle
     engine_revision: engineRevision,
     dart_version: dartVersion,
     abi,
+    ota_protocol_version: otaProtocolVersionRaw,
+    base_sha256: baseSha256,
+    build_fingerprint: buildFingerprint,
     source_commit: sourceCommit,
   } = req.body ?? {};
-  if (!req.file || !releaseVersion || !engineRevision || !dartVersion || !abi) {
-    return res.status(400).json({ error: 'artifact, release_version, engine_revision, dart_version, and abi are required' });
+  const otaProtocolVersion = Number(otaProtocolVersionRaw);
+  if (!req.file || !releaseVersion || !engineRevision || !dartVersion || !abi || !baseSha256 || !buildFingerprint) {
+    return res.status(400).json({ error: 'artifact and complete exact-build metadata are required' });
   }
   if (!releaseVersionPattern.test(releaseVersion) || !supportedAbis.has(abi)) {
     return res.status(400).json({ error: 'Invalid release_version or unsupported ABI' });
+  }
+  const expectedFingerprint = computeBuildFingerprint({
+    otaProtocolVersion,
+    releaseVersion,
+    engineRevision,
+    dartVersion,
+    arch: abi,
+    buildMode: 'release',
+    baseSha256,
+  });
+  if (
+    otaProtocolVersion !== SUPPORTED_OTA_PROTOCOL_VERSION ||
+    !/^[0-9a-f]{64}$/.test(baseSha256) ||
+    buildFingerprint !== expectedFingerprint
+  ) {
+    return res.status(400).json({ error: 'Invalid OTA protocol, base SHA-256, or build fingerprint' });
   }
   const relativePath = path.join('releases', app.slug, releaseVersion, abi, 'base.aab');
   const absolutePath = path.join(config.artifactStorageDir, relativePath);
@@ -148,12 +210,31 @@ cliRouter.post('/apps/:appSlug/releases', upload.single('artifact'), asyncHandle
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, req.file.buffer, { flag: 'wx' });
     await client.query(
-      `insert into release_artifacts (release_id, abi, artifact_relative_path, artifact_sha256, artifact_size)
-       values ($1, $2, $3, $4, $5)`,
-      [release.id, abi, relativePath, hash, req.file.buffer.length],
+      `insert into release_artifacts (
+         release_id, abi, artifact_relative_path, artifact_sha256, artifact_size,
+         ota_protocol_version, base_sha256, build_fingerprint
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        release.id,
+        abi,
+        relativePath,
+        hash,
+        req.file.buffer.length,
+        otaProtocolVersion,
+        baseSha256,
+        buildFingerprint,
+      ],
     );
     await client.query('commit');
-    res.status(201).json({ ...release, abi, artifact_sha256: hash, artifact_size: req.file.buffer.length });
+    res.status(201).json({
+      ...release,
+      abi,
+      artifact_sha256: hash,
+      artifact_size: req.file.buffer.length,
+      ota_protocol_version: otaProtocolVersion,
+      base_sha256: baseSha256,
+      build_fingerprint: buildFingerprint,
+    });
   } catch (error) {
     await client.query('rollback');
     if (error.code === 'EEXIST') return res.status(409).json({ error: 'Release artifact already exists on disk' });
@@ -187,7 +268,8 @@ cliRouter.post('/apps/:appSlug/patches', upload.single('artifact'), asyncHandler
     return res.status(400).json({ error: 'manifest is not valid JSON' });
   }
   const releaseResult = await query(
-    `select r.engine_revision, r.dart_version
+    `select r.engine_revision, r.dart_version, ra.ota_protocol_version,
+            ra.base_sha256, ra.build_fingerprint
      from releases r join release_artifacts ra on ra.release_id = r.id
      where r.app_id = $1 and r.release_version = $2 and ra.abi = $3`,
     [app.id, manifest.release, manifest.abi],
@@ -199,6 +281,15 @@ cliRouter.post('/apps/:appSlug/patches', upload.single('artifact'), asyncHandler
   if (manifest.engine_revision !== release.engine_revision || manifest.dart_version !== release.dart_version) {
     return res.status(409).json({
       error: 'Flutter/Dart toolchain differs from the registered store release; rebuild the patch with the release toolchain',
+    });
+  }
+  if (
+    manifest.ota_protocol_version !== release.ota_protocol_version ||
+    manifest.base_sha256 !== release.base_sha256 ||
+    manifest.build_fingerprint !== release.build_fingerprint
+  ) {
+    return res.status(409).json({
+      error: 'Patch exact-build identity differs from the registered store release',
     });
   }
   const signerResult = await query('select * from app_managed_signers where app_id = $1', [app.id]);

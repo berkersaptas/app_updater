@@ -34,7 +34,25 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 step() { echo; echo "==> $*"; }
 
 logcat_capture_file="$(mktemp)"
-trap 'rm -f "$logcat_capture_file"' EXIT
+sample_config_backup=""
+ota_properties_backup=""
+ota_properties_existed=false
+cleanup() {
+  local status=$?
+  if [[ -n "$sample_config_backup" && -f "$sample_config_backup" ]]; then
+    cp "$sample_config_backup" "$repo_dir/sample_app/app_updater.yaml"
+  fi
+  if [[ -n "$ota_properties_backup" && -f "$ota_properties_backup" ]]; then
+    if $ota_properties_existed; then
+      cp "$ota_properties_backup" "$repo_dir/sample_app/android/ota.properties"
+    else
+      rm -f "$repo_dir/sample_app/android/ota.properties"
+    fi
+  fi
+  rm -f "$logcat_capture_file" "$sample_config_backup" "$ota_properties_backup"
+  return "$status"
+}
+trap cleanup EXIT
 
 # Streams logcat to a file for the duration of the restart instead of clearing the device's ring
 # buffer and reading it back afterward with `adb logcat -d`: on a noisy device (lots of unrelated
@@ -99,11 +117,28 @@ register_key() {
 
 if ! $skip_build; then
   step "Generate dev signing keys (ed25519 + rsa) and build a fresh base APK"
+  sample_config_backup="$(mktemp)"
+  cp "$repo_dir/sample_app/app_updater.yaml" "$sample_config_backup"
+  ota_properties_backup="$(mktemp)"
+  if [[ -f "$repo_dir/sample_app/android/ota.properties" ]]; then
+    ota_properties_existed=true
+    cp "$repo_dir/sample_app/android/ota.properties" "$ota_properties_backup"
+  fi
   OTA_SIGNATURE_ALGORITHM=ed25519 OTA_SIGNATURE_ACTIVE_KEY_ID=dev-ed25519-v1 \
     "$repo_dir/scripts/generate_dev_signing_key.sh"
   OTA_SIGNATURE_ALGORITHM=rsa_pkcs1_sha256 OTA_SIGNATURE_ACTIVE_KEY_ID=dev-rsa-v1 \
     "$repo_dir/scripts/generate_dev_signing_key.sh"
+  node "$repo_dir/scripts/sync_sample_app_dev_keyring.mjs"
   "$repo_dir/scripts/build_base.sh"
+  cp "$sample_config_backup" "$repo_dir/sample_app/app_updater.yaml"
+  if $ota_properties_existed; then
+    cp "$ota_properties_backup" "$repo_dir/sample_app/android/ota.properties"
+  else
+    rm -f "$repo_dir/sample_app/android/ota.properties"
+  fi
+  rm -f "$sample_config_backup" "$ota_properties_backup"
+  sample_config_backup=""
+  ota_properties_backup=""
 fi
 [[ -f "$repo_dir/patch_artifacts/base/base.apk" ]] || fail "Missing base.apk; run without --skip-build"
 [[ -f "$repo_dir/patch_artifacts/base/libapp.so" ]] || fail "Missing base libapp.so; run without --skip-build"
@@ -124,6 +159,33 @@ curl -sf -X POST "$api/admin/apps/$app_slug/patches" -H "X-Api-Key: $admin_api_k
   -F "manifest=@$repo_dir/patch_artifacts/$patch_name/patch_manifest.json;type=application/json" \
   -F "artifact=@$repo_dir/patch_artifacts/$patch_name/libapp.so.diff;type=application/octet-stream" \
   > /dev/null
+
+step "Reject a different exact build and safely decline a legacy OTA client"
+manifest="$repo_dir/patch_artifacts/$patch_name/patch_manifest.json"
+manifest_string() {
+  sed -n "s/.*\"$1\": \"\([^\"]*\)\".*/\1/p" "$manifest" | head -1
+}
+release="$(manifest_string release)"
+engine_revision="$(manifest_string engine_revision)"
+dart_version="$(manifest_string dart_version)"
+abi="$(manifest_string abi)"
+build_mode="$(manifest_string build_mode)"
+base_sha256="$(manifest_string base_sha256)"
+different_base_sha256="0000000000000000000000000000000000000000000000000000000000000000"
+different_fingerprint="$(
+  "$repo_dir/scripts/compute_build_fingerprint.sh" 2 "$release" "$engine_revision" \
+    "$dart_version" "$abi" "$build_mode" "$different_base_sha256"
+)"
+incompatible_response="$(curl -sf -X POST "$api/v1/apps/$app_slug/patch-check" \
+  -H 'Content-Type: application/json' \
+  -d "{\"channel\":\"stable\",\"release_version\":\"$release\",\"current_patch_number\":0,\"platform\":\"android\",\"arch\":\"$abi\",\"ota_protocol_version\":2,\"engine_revision\":\"$engine_revision\",\"dart_version\":\"$dart_version\",\"build_mode\":\"$build_mode\",\"base_sha256\":\"$different_base_sha256\",\"build_fingerprint\":\"$different_fingerprint\"}")"
+[[ "$incompatible_response" == *'"patch_available":false'* ]] \
+  || fail "A different exact build unexpectedly received the patch: $incompatible_response"
+legacy_response="$(curl -sf -X POST "$api/v1/apps/$app_slug/patch-check" \
+  -H 'Content-Type: application/json' \
+  -d "{\"channel\":\"stable\",\"release_version\":\"$release\",\"current_patch_number\":0,\"platform\":\"android\",\"arch\":\"$abi\"}")"
+[[ "$legacy_response" == *'"patch_available":false'* && "$legacy_response" == *'"client_upgrade_required":true'* ]] \
+  || fail "Legacy client was not safely declined: $legacy_response"
 
 step "Launch 1: app_updater finds, verifies, and stages the patch without activating it"
 restart_app

@@ -11,6 +11,7 @@ json_string() {
 }
 
 schema_version="$(sed -n 's/.*"schema_version": \([0-9][0-9]*\).*/\1/p' "$manifest" | head -1)"
+ota_protocol_version="$(sed -n 's/.*"ota_protocol_version": \([0-9][0-9]*\).*/\1/p' "$manifest" | head -1)"
 release="$(json_string release)"
 patch_number="$(sed -n 's/.*"patch_number": \([0-9][0-9]*\).*/\1/p' "$manifest" | head -1)"
 artifact_kind="$(json_string artifact_kind)"
@@ -18,13 +19,15 @@ engine_revision="$(json_string engine_revision)"
 dart_version="$(json_string dart_version)"
 abi="$(json_string abi)"
 build_mode="$(json_string build_mode)"
+base_sha256="$(json_string base_sha256)"
+build_fingerprint="$(json_string build_fingerprint)"
 sha256="$(json_string sha256)"
 signature_key_id="$(json_string signature_key_id)"
 signature_algorithm="$(json_string signature_algorithm)"
 
-"$repo_dir/scripts/write_manifest_payload.sh" "$actual_payload" "$schema_version" "$release" \
+"$repo_dir/scripts/write_manifest_payload.sh" "$actual_payload" "$schema_version" "$ota_protocol_version" "$release" \
   "$patch_number" "$artifact_kind" "$engine_revision" "$dart_version" "$abi" "$build_mode" \
-  "$sha256" "$signature_key_id" "$signature_algorithm"
+  "$base_sha256" "$build_fingerprint" "$sha256" "$signature_key_id" "$signature_algorithm"
 
 if ! cmp -s "$expected_payload" "$actual_payload"; then
   echo "OTA core fixture payload does not match manifest-derived payload" >&2

@@ -131,7 +131,13 @@ app_updater init --app-slug my-app-android
 - adds the public `app_updater` Flutter dependency;
 - changes `MainActivity` to extend `FlutterOtaActivity`;
 - adds `AppUpdater.instance.autoUpdate()` to a standard `lib/main.dart` entry point;
-- creates the app owner and an RSA-3072 managed signer when `--create` is used.
+- creates the app owner and an RSA-3072 managed signer when `--create` is used;
+- when creating an app, detects `flutter_launcher_icons.image_path` (or a conventional
+  `assets/icon` path) and uploads a normalized portal logo if one is available.
+
+Use `--icon path/to/logo.png` to choose or replace the logo explicitly. Existing app logos are
+never auto-replaced during an idempotent `init`; use `--skip-logo` to disable discovery for a new
+app. Logos are profile metadata and are not included in release or patch manifests.
 
 The private signing key is never sent to the developer. The backend encrypts it with AES-256-GCM
 under `SIGNING_MASTER_KEY` and uses it only to sign validated patch manifests.
@@ -165,7 +171,8 @@ The command:
 
 1. builds an AAB with `flutter build appbundle --release`;
 2. validates the target ABI's `libapp.so`;
-3. records the release, Flutter engine, Dart version, ABI, source commit, and AAB hash;
+3. records the release, Flutter engine, Dart version, ABI, source commit, AAB hash, exact base
+   `libapp.so` SHA-256, and protocol v2 build fingerprint;
 4. stores the AAB as the immutable patch base for this release;
 5. prints the exact artifact that must be uploaded to Play Console.
 

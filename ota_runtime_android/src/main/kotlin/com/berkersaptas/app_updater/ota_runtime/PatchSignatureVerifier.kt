@@ -30,6 +30,7 @@ internal class PatchSignatureVerifier(private val config: OtaRuntimeConfig) {
     private fun canonicalPayload(patch: PatchState): String =
         buildString {
             append("schema_version=").append(patch.schemaVersion).append('\n')
+            append("ota_protocol_version=").append(patch.otaProtocolVersion).append('\n')
             append("release=").append(patch.release).append('\n')
             append("patch_number=").append(patch.patchNumber).append('\n')
             append("artifact_kind=").append(patch.artifactKind).append('\n')
@@ -37,6 +38,8 @@ internal class PatchSignatureVerifier(private val config: OtaRuntimeConfig) {
             append("dart_version=").append(patch.dartVersion).append('\n')
             append("abi=").append(patch.abi).append('\n')
             append("build_mode=").append(patch.buildMode).append('\n')
+            append("base_sha256=").append(patch.baseSha256).append('\n')
+            append("build_fingerprint=").append(patch.buildFingerprint).append('\n')
             append("sha256=").append(patch.sha256).append('\n')
             append("signature_key_id=").append(patch.signatureKeyId).append('\n')
             append("signature_algorithm=").append(patch.signatureAlgorithm).append('\n')

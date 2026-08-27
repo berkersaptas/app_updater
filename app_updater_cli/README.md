@@ -75,6 +75,12 @@ app_updater init --create --app-slug my-app-android --package-name com.example.m
 `lib/main.dart`. It is safe to run again. Unusual project layouts are left unchanged with a precise
 manual instruction instead of being guessed.
 
+For a newly created app, `init` also looks at `flutter_launcher_icons.image_path` /
+`image_path_android` and common `assets/icon` locations, then uploads the image as the portal logo.
+Pass `--icon path/to/logo.png` to select or replace it explicitly, or `--skip-logo` to opt out.
+Automatic discovery never overwrites an existing app's logo. The backend accepts PNG, JPEG, and
+WebP files up to 2 MB with dimensions of at least 128×128 pixels.
+
 ## Store releases and patches
 
 For every version that will be submitted to Google Play, run:
@@ -97,8 +103,9 @@ app_updater patch android
 
 The CLI downloads the registered store base, rebuilds the app, rejects Android/native/resource/
 asset/plugin changes, creates a binary diff of `libapp.so`, and uploads it. The backend verifies the
-registered release, ABI, Flutter engine, and Dart version; assigns the patch number; signs the
-manifest with the managed app key; and publishes it.
+registered release, ABI, Flutter engine, Dart version, exact base `libapp.so` SHA-256, and protocol
+v2 build fingerprint; assigns the patch number; signs the manifest with the managed app key; and
+publishes it. A patch built from any other market base is rejected before distribution.
 
 For AABs, the Dart-generated `libapp.so.sym` under `BUNDLE-METADATA` is allowed to change together
 with `libapp.so`; it is debugging metadata and is not executable device content. All other bundle

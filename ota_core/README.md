@@ -13,7 +13,8 @@ sample_app/               sample consumer app
 
 The core contract is intentionally small:
 
-- manifest schema version `1`
+- manifest schema and OTA capability protocol version `2`
+- an exact market-build identity (`base_sha256` + deterministic `build_fingerprint`)
 - canonical signing payload
 - Ed25519 or RSA PKCS#1 SHA-256 signature over that payload
 - explicit signed signature algorithm metadata
@@ -27,7 +28,7 @@ contract. They may add stricter platform checks.
 ## Files
 
 - [manifest.schema.json](manifest.schema.json): JSON schema for `patch_manifest.json`.
-- [signing_payload_v1.txt](signing_payload_v1.txt): canonical payload order and newline format.
+- [signing_payload_v2.txt](signing_payload_v2.txt): canonical payload order and newline format.
 - [lifecycle.md](lifecycle.md): state machine shared across adapters.
 - [platform_capabilities.md](platform_capabilities.md): Android/iOS capability framing.
 - [fixtures/android_arm64_patch_manifest.json](fixtures/android_arm64_patch_manifest.json): current

@@ -6,6 +6,8 @@ sealed class OtaUpdateResult {
     switch (map['status']) {
       case 'installed':
         return OtaUpdateInstalled(map['patchNumber']! as int);
+      case 'rolledBack':
+        return OtaUpdateRolledBack(map['patchNumber']! as int);
       case 'failed':
         return OtaUpdateFailed(map['reason']! as String);
       case 'noUpdateAvailable':
@@ -32,6 +34,17 @@ final class OtaUpdateInstalled extends OtaUpdateResult {
 
   @override
   String toString() => 'OtaUpdateInstalled(patchNumber: $patchNumber)';
+}
+
+/// The backend withdrew the current patch or revoked its signing key. The local patch is disabled
+/// immediately and the packaged store artifact will be selected on the next cold launch.
+final class OtaUpdateRolledBack extends OtaUpdateResult {
+  const OtaUpdateRolledBack(this.patchNumber);
+
+  final int patchNumber;
+
+  @override
+  String toString() => 'OtaUpdateRolledBack(patchNumber: $patchNumber)';
 }
 
 /// The check, download, or install failed. The app should keep running normally — this must never

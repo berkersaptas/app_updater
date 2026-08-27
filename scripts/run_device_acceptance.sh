@@ -4,13 +4,33 @@ set -euo pipefail
 trap 'status=$?; echo "FAIL: acceptance command at line $LINENO exited with $status" >&2' ERR
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+sample_config_backup=""
+ota_properties_backup=""
+ota_properties_existed=false
+cleanup() {
+  local status=$?
+  if [[ -n "$sample_config_backup" && -f "$sample_config_backup" ]]; then
+    cp "$sample_config_backup" "$repo_dir/sample_app/app_updater.yaml"
+  fi
+  if [[ -n "$ota_properties_backup" && -f "$ota_properties_backup" ]]; then
+    if $ota_properties_existed; then
+      cp "$ota_properties_backup" "$repo_dir/sample_app/android/ota.properties"
+    else
+      rm -f "$repo_dir/sample_app/android/ota.properties"
+    fi
+  fi
+  rm -f "$sample_config_backup" "$ota_properties_backup"
+  return "$status"
+}
+trap cleanup EXIT
 package_name="${PACKAGE_NAME:-com.berkersaptas.app_updater_sample}"
 authority="$package_name.ota-installer"
 component="$package_name/.MainActivity"
 # ed25519 signature verification is not available on all real devices (confirmed failing on
 # Android 10/API 29 — a platform JCA gap, not a bug here; see docs/key_management.md). Default this
-# suite to rsa_pkcs1_sha256 so it works across devices; sample_app/app_updater.yaml already
-# trusts both dev keys. Override with OTA_SIGNATURE_ALGORITHM=ed25519 to test that path instead.
+# suite to rsa_pkcs1_sha256 so it works across devices. The build block synchronizes both local
+# dev public keys into sample_app/app_updater.yaml temporarily and restores the file on exit.
+# Override with OTA_SIGNATURE_ALGORITHM=ed25519 to test that path instead.
 export OTA_SIGNATURE_ALGORITHM="${OTA_SIGNATURE_ALGORITHM:-rsa_pkcs1_sha256}"
 export OTA_SIGNATURE_ACTIVE_KEY_ID="${OTA_SIGNATURE_ACTIVE_KEY_ID:-dev-rsa-v1}"
 skip_build=false
@@ -54,6 +74,9 @@ load_manifest() {
   dart_version="$(json_string "$manifest" dart_version)"
   abi="$(json_string "$manifest" abi)"
   build_mode="$(json_string "$manifest" build_mode)"
+  base_sha256="$(json_string "$manifest" base_sha256)"
+  build_fingerprint="$(json_string "$manifest" build_fingerprint)"
+  ota_protocol_version="$(sed -n 's/.*"ota_protocol_version": \([0-9][0-9]*\).*/\1/p' "$manifest" | head -1)"
   expected_hash="$(json_string "$manifest" sha256)"
   signature_key_id="$(json_string "$manifest" signature_key_id)"
   signature_algorithm="$(json_string "$manifest" signature_algorithm)"
@@ -74,9 +97,10 @@ sign_fields() {
   local signing_key="$repo_dir/keys/${signature_key_id}_private.pem"
   [[ -f "$signing_key" ]] || fail "Missing signing key for acceptance: $signing_key"
   payload="$(mktemp)"
-  "$repo_dir/scripts/write_manifest_payload.sh" "$payload" 1 "$release_value" \
+  "$repo_dir/scripts/write_manifest_payload.sh" "$payload" 2 "$ota_protocol_version" "$release_value" \
     "$patch_number_value" "$artifact_kind" "$engine_value" "$dart_value" "$abi_value" \
-    "$build_mode_value" "$hash_value" "$signature_key_id" "$signature_algorithm"
+    "$build_mode_value" "$base_sha256" "$build_fingerprint" "$hash_value" \
+    "$signature_key_id" "$signature_algorithm"
   case "$signature_algorithm" in
     ed25519)
       openssl pkeyutl -sign -rawin -inkey "$signing_key" -in "$payload"
@@ -100,7 +124,7 @@ activate() {
   adb shell content call \
     --uri "content://$authority" \
     --method activate \
-    --arg "$1~$2~$artifact_kind~$3~$4~$5~$6~$7~$signature_key_id~$signature_algorithm~$arg_signature" > /dev/null
+    --arg "$1~$2~$artifact_kind~$3~$4~$5~$6~$7~$ota_protocol_version~$base_sha256~$build_fingerprint~$signature_key_id~$signature_algorithm~$arg_signature" > /dev/null
 }
 
 restart_app() {
@@ -143,6 +167,18 @@ install_good_patch() {
 
 if ! $skip_build; then
   step "Build base, confirmed patch, and unconfirmed patch"
+  sample_config_backup="$(mktemp)"
+  cp "$repo_dir/sample_app/app_updater.yaml" "$sample_config_backup"
+  ota_properties_backup="$(mktemp)"
+  if [[ -f "$repo_dir/sample_app/android/ota.properties" ]]; then
+    ota_properties_existed=true
+    cp "$repo_dir/sample_app/android/ota.properties" "$ota_properties_backup"
+  fi
+  OTA_SIGNATURE_ALGORITHM=ed25519 OTA_SIGNATURE_ACTIVE_KEY_ID=dev-ed25519-v1 \
+    "$repo_dir/scripts/generate_dev_signing_key.sh"
+  OTA_SIGNATURE_ALGORITHM=rsa_pkcs1_sha256 OTA_SIGNATURE_ACTIVE_KEY_ID=dev-rsa-v1 \
+    "$repo_dir/scripts/generate_dev_signing_key.sh"
+  node "$repo_dir/scripts/sync_sample_app_dev_keyring.mjs"
   "$repo_dir/scripts/build_base.sh"
   "$repo_dir/scripts/build_patched.sh"
   "$repo_dir/scripts/build_unconfirmed.sh"
@@ -183,7 +219,7 @@ step "Reject an unsigned or tampered manifest before activation"
 adb shell content call \
   --uri "content://$authority" \
   --method activate \
-  --arg "$release~$patch_number~$artifact_kind~$expected_hash~$engine_revision~$dart_version~$abi~$build_mode~$signature_key_id~$signature_algorithm~invalid" > /dev/null 2>&1 || true
+  --arg "$release~$patch_number~$artifact_kind~$expected_hash~$engine_revision~$dart_version~$abi~$build_mode~$ota_protocol_version~$base_sha256~$build_fingerprint~$signature_key_id~$signature_algorithm~invalid" > /dev/null 2>&1 || true
 restart_app
 assert_ui "Hello v2"
 assert_state active
@@ -237,6 +273,24 @@ activate "$release" "$patch_number" "$expected_hash" \
 restart_app
 assert_ui "Hello v1"
 assert_state failed "Build mode mismatch"
+
+step "Reject a patch built from a different base libapp.so"
+install_good_patch
+base_sha256=0000000000000000000000000000000000000000000000000000000000000000
+activate "$release" "$patch_number" "$expected_hash" \
+  "$engine_revision" "$dart_version" "$abi" "$build_mode"
+restart_app
+assert_ui "Hello v1"
+assert_state failed "Base libapp.so mismatch"
+
+step "Reject a forged or stale exact build fingerprint"
+install_good_patch
+build_fingerprint=0000000000000000000000000000000000000000000000000000000000000000
+activate "$release" "$patch_number" "$expected_hash" \
+  "$engine_revision" "$dart_version" "$abi" "$build_mode"
+restart_app
+assert_ui "Hello v1"
+assert_state failed "Build fingerprint mismatch"
 
 step "Reject a missing artifact"
 install_good_patch

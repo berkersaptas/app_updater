@@ -9,9 +9,11 @@ payload_for() {
   local output="$1"
   local key_id="$2"
   local algorithm="$3"
-  "$repo_dir/scripts/write_manifest_payload.sh" "$output" 1 "1.0.0+1" 1 \
+  "$repo_dir/scripts/write_manifest_payload.sh" "$output" 2 2 "1.0.0+1" 1 \
     full_aot_library 83675ed27633283e7fc296c8bca22e841224c096 3.12.2 \
-    arm64-v8a release ec59d1df4b8a03d38eaf99f01a599eb7e2572f4c4f6f694a409e6da2304a9cb7 \
+    arm64-v8a release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+    46612b3568f1b3220765c4138063d6940fdb87bc5dd5197555bd3c188e0be766 \
+    ec59d1df4b8a03d38eaf99f01a599eb7e2572f4c4f6f694a409e6da2304a9cb7 \
     "$key_id" "$algorithm"
 }
 

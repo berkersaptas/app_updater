@@ -79,20 +79,23 @@ class OtaInstallProvider : ContentProvider() {
         }
         if (method != OtaManifestContract.METHOD_ACTIVATE || arg == null) {
             throw IllegalArgumentException(
-                "Expected activate with release~patchNumber~artifactKind~sha256~engine~dart~abi~mode~keyId~algorithm~signature",
+                "Expected activate with release~patchNumber~artifactKind~sha256~engine~dart~abi~mode~protocol~baseSha256~buildFingerprint~keyId~algorithm~signature",
             )
         }
         val fields = arg.split('~')
         val patchNumber = fields.getOrNull(1)?.toIntOrNull()
         val artifactKind = fields.getOrNull(2)
         val sha256 = fields.getOrNull(3)
-        require(fields.size == 11 && fields[0].isNotBlank() && patchNumber != null)
+        require(fields.size == 14 && fields[0].isNotBlank() && patchNumber != null)
         require(
             artifactKind == OtaManifestContract.ARTIFACT_KIND_FULL_AOT_LIBRARY ||
                 artifactKind == OtaManifestContract.ARTIFACT_KIND_BINARY_DIFF,
         )
         require(sha256?.matches(Regex("[0-9a-fA-F]{64}")) == true)
         require(fields.drop(4).all(String::isNotBlank))
+        require(fields[8].toIntOrNull() == OtaManifestContract.OTA_PROTOCOL_VERSION)
+        require(fields[9].matches(Regex("[0-9a-fA-F]{64}")))
+        require(fields[10].matches(Regex("[0-9a-fA-F]{64}")))
 
         val artifactFileName = if (artifactKind == OtaManifestContract.ARTIFACT_KIND_BINARY_DIFF) {
             OtaManifestContract.ARTIFACT_DIFF_NAME
@@ -118,9 +121,12 @@ class OtaInstallProvider : ContentProvider() {
             dartVersion = fields[5],
             abi = fields[6],
             buildMode = fields[7],
-            signatureKeyId = fields[8],
-            signatureAlgorithm = fields[9],
-            signature = fields[10],
+            otaProtocolVersion = fields[8].toInt(),
+            baseSha256 = fields[9].lowercase(),
+            buildFingerprint = fields[10].lowercase(),
+            signatureKeyId = fields[11],
+            signatureAlgorithm = fields[12],
+            signature = fields[13],
             state = PatchState.STATUS_PENDING,
         )
         val store = PatchStateStore(appContext)

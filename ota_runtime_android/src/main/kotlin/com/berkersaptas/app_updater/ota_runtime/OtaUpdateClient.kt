@@ -20,6 +20,7 @@ data class OtaUpdateConfig(
 sealed class OtaUpdateResult {
     object NoUpdateAvailable : OtaUpdateResult()
     data class Installed(val patchNumber: Int) : OtaUpdateResult()
+    data class RolledBack(val patchNumber: Int) : OtaUpdateResult()
     data class Failed(val reason: String) : OtaUpdateResult()
 }
 
@@ -73,9 +74,16 @@ class OtaUpdateClient(context: Context) {
         val releaseVersion = installedRelease(appContext)
         val abi = Build.SUPPORTED_ABIS.firstOrNull()
             ?: return OtaUpdateResult.Failed("Device reports no supported ABI")
-        val currentPatchNumber = stateStore.read()
-            ?.takeIf { it.state == PatchState.STATUS_ACTIVE || it.state == PatchState.STATUS_PENDING }
-            ?.patchNumber ?: 0
+        val runtimeConfig = OtaRuntimeConfig.from(appContext)
+        val buildIdentity = InstalledBuildIdentity.resolve(
+            appContext,
+            releaseVersion,
+            runtimeConfig.engineRevision,
+            runtimeConfig.dartVersion,
+            abi,
+            runtimeConfig.buildMode,
+        ) ?: return OtaUpdateResult.Failed("Could not determine the installed base libapp.so identity")
+        val currentPatchNumber = PatchRetryPolicy.patchNumberForCheck(stateStore.read())
 
         val checkResponse = try {
             postJson(
@@ -86,6 +94,12 @@ class OtaUpdateClient(context: Context) {
                     put("current_patch_number", currentPatchNumber)
                     put("platform", "android")
                     put("arch", abi)
+                    put("ota_protocol_version", OtaManifestContract.OTA_PROTOCOL_VERSION)
+                    put("engine_revision", runtimeConfig.engineRevision)
+                    put("dart_version", runtimeConfig.dartVersion)
+                    put("build_mode", runtimeConfig.buildMode)
+                    put("base_sha256", buildIdentity.baseSha256)
+                    put("build_fingerprint", buildIdentity.fingerprint)
                 },
             )
         } catch (error: IOException) {
@@ -93,12 +107,33 @@ class OtaUpdateClient(context: Context) {
         }
 
         if (!checkResponse.optBoolean("patch_available", false)) {
+            val rollbackPatchNumber = checkResponse.optInt("rollback_patch_number", -1)
+            if (rollbackPatchNumber > 0 && BackendRollback.apply(
+                    stateStore,
+                    lifecycleStore,
+                    rollbackPatchNumber,
+                )
+            ) {
+                return OtaUpdateResult.RolledBack(rollbackPatchNumber)
+            }
             return OtaUpdateResult.NoUpdateAvailable
         }
         val patch = checkResponse.optJSONObject("patch")
             ?: return OtaUpdateResult.Failed("patch_available was true but patch was missing")
         val manifest = patch.optJSONObject("manifest")
             ?: return OtaUpdateResult.Failed("Patch response was missing its manifest")
+        val exactBuildMatches =
+            manifest.optInt("ota_protocol_version", -1) == OtaManifestContract.OTA_PROTOCOL_VERSION &&
+                manifest.optString("release") == releaseVersion &&
+                manifest.optString("engine_revision") == runtimeConfig.engineRevision &&
+                manifest.optString("dart_version") == runtimeConfig.dartVersion &&
+                manifest.optString("abi") == abi &&
+                manifest.optString("build_mode") == runtimeConfig.buildMode &&
+                manifest.optString("base_sha256") == buildIdentity.baseSha256 &&
+                manifest.optString("build_fingerprint") == buildIdentity.fingerprint
+        if (!exactBuildMatches) {
+            return OtaUpdateResult.Failed("Patch manifest does not target the exact installed build")
+        }
         val patchNumber = manifest.optInt("patch_number", -1)
         if (patchNumber <= 0) return OtaUpdateResult.Failed("Invalid patch_number in manifest")
         if (badPatchStore.contains(patchNumber)) {
@@ -154,6 +189,7 @@ class OtaUpdateClient(context: Context) {
 
     private fun manifestToPatchState(manifest: JSONObject, artifactPath: String) = PatchState(
         schemaVersion = manifest.getInt("schema_version"),
+        otaProtocolVersion = manifest.getInt("ota_protocol_version"),
         enabled = true,
         release = manifest.getString("release"),
         patchNumber = manifest.getInt("patch_number"),
@@ -165,6 +201,8 @@ class OtaUpdateClient(context: Context) {
         dartVersion = manifest.getString("dart_version"),
         abi = manifest.getString("abi"),
         buildMode = manifest.getString("build_mode"),
+        baseSha256 = manifest.getString("base_sha256").lowercase(),
+        buildFingerprint = manifest.getString("build_fingerprint").lowercase(),
         signatureKeyId = manifest.getString("signature_key_id"),
         signatureAlgorithm = manifest.getString("signature_algorithm"),
         signature = manifest.getString("signature"),

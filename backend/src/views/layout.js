@@ -20,6 +20,12 @@ const STYLE = `
   .warn { background: #fff3cd; border: 1px solid #d4a72c; padding: 12px; border-radius: 4px; }
   .muted { color: #666; font-size: 13px; }
   pre { background: #f5f5f5; padding: 12px; overflow-x: auto; }
+  .app-link { display: inline-flex; align-items: center; gap: 9px; }
+  .app-logo { width: 36px; height: 36px; border-radius: 9px; object-fit: cover; flex: 0 0 auto; }
+  .app-logo-large { width: 80px; height: 80px; border-radius: 18px; }
+  .app-logo-fallback { display: inline-flex; align-items: center; justify-content: center; background: #e8ecf6; color: #2d4677; font-weight: 700; }
+  .app-profile { display: flex; align-items: center; gap: 16px; margin: 8px 0 20px; }
+  .app-profile h2, .app-profile p { margin: 0 0 4px; }
 `;
 
 export function renderPage(title, bodyHtml, { user } = {}) {

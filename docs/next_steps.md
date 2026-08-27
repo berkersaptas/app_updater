@@ -265,9 +265,13 @@ tests (missing `artifact_size` now correctly rejected), and a full device run of
 `scripts/run_binary_diff_acceptance.sh` (build → sign → upload → backend-side size check → download
 → client-side size check → resume → corruption-rejection) passing end to end unchanged.
 
-The "asset/plugin-schema compatibility" half of the original backlog item is a separate, genuinely
-unscoped question (what would even constitute a plugin/asset fingerprint, and how would it be
-computed on both build and device sides?) — split off, not attempted here.
+**Exact market-build compatibility is done** (2026-08-26): protocol v2 signs the exact base
+`libapp.so` SHA-256 and a deterministic fingerprint over release, Flutter engine, Dart SDK, ABI,
+build mode, and base hash. The connected CLI stores that identity with the immutable Play AAB;
+the backend only distributes exact matches; Android recomputes the hash from the installed APK or
+split APK and verifies it again before boot. Native/resource/plugin changes remain blocked by the
+existing Dart-only archive guard. Legacy capability-less clients receive no patch and must update
+through the store.
 
 **A real getting-started guide and generic patch-build script are done** (2026-08-18): writing
 [GETTING_STARTED.md](../GETTING_STARTED.md) (backend setup, the web portal, mobile integration, day-2
@@ -318,7 +322,6 @@ permanent per-patch blacklist. Added:
   `docs/key_management.md`). No real multi-OEM device matrix exists — would need actual additional
   hardware to do properly.
 - Process-kill-on-hang for `BootWatchdog` (see above) — deferred, not forgotten.
-- Define and add an asset/plugin-schema compatibility check (needs scoping first).
 - Revisit AGP built-in Kotlin after the pinned Flutter Gradle plugin supports the new DSL cleanly.
 
 Everything below this line is the fuller backlog; the items above are what to pick up next.

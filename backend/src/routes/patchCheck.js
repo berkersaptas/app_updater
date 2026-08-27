@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireApp } from '../appLookup.js';
 import { asyncHandler } from '../asyncHandler.js';
+import { validatePatchCheck } from '../requestValidation.js';
 
 export const patchCheckRouter = Router();
 
@@ -9,38 +10,83 @@ patchCheckRouter.post('/apps/:appSlug/patch-check', asyncHandler(async (req, res
   const app = await requireApp(req, res);
   if (!app) return;
 
-  const {
-    channel = 'stable',
-    release_version: releaseVersion,
-    current_patch_number: currentPatchNumber,
-    arch,
-  } = req.body ?? {};
-  if (!releaseVersion || currentPatchNumber === undefined || !arch) {
-    return res
-      .status(400)
-      .json({ error: 'release_version, current_patch_number, and arch are required' });
+  const validation = validatePatchCheck(req.body, app.platform);
+  if (!validation.valid) return res.status(400).json({ error: validation.error });
+  if (!validation.matchesAppPlatform) return res.json({ patch_available: false });
+  if (!validation.otaCapable) {
+    return res.json({ patch_available: false, client_upgrade_required: true });
   }
+  const {
+    channel,
+    releaseVersion,
+    currentPatchNumber,
+    arch,
+    otaProtocolVersion,
+    engineRevision,
+    dartVersion,
+    buildMode,
+    baseSha256,
+    buildFingerprint,
+  } = validation.values;
 
-  // First filter only: release, arch (abi), release build mode, enabled, channel, and a higher
-  // patch number than the device already has. This narrows candidates cheaply; the device's own
-  // compatibility checks (engine revision, Dart version, signature) remain the authoritative gate,
-  // same as today with locally-installed patches.
+  // Exact build identity is the server-side distribution gate. Device-side signature,
+  // compatibility, and reconstructed SHA checks remain a second independent fail-closed layer.
   const result = await query(
-    `select * from patches
-     where app_id = $1
-       and release = $2
-       and abi = $3
-       and build_mode = 'release'
-       and enabled = true
-       and channel = $4
-       and patch_number > $5
-     order by patch_number desc
+    `select p.* from patches p
+     join app_keys k
+       on k.app_id = p.app_id
+      and k.key_id = p.manifest ->> 'signature_key_id'
+      and k.active = true
+      and k.revoked = false
+     where p.app_id = $1
+       and p.release = $2
+       and p.abi = $3
+       and p.build_mode = $6
+       and p.enabled = true
+       and p.channel = $4
+       and p.patch_number > $5
+       and (p.manifest ->> 'ota_protocol_version')::int = $7
+       and p.manifest ->> 'engine_revision' = $8
+       and p.manifest ->> 'dart_version' = $9
+       and p.manifest ->> 'base_sha256' = $10
+       and p.manifest ->> 'build_fingerprint' = $11
+     order by p.patch_number desc
      limit 1`,
-    [app.id, releaseVersion, arch, channel, currentPatchNumber],
+    [
+      app.id,
+      releaseVersion,
+      arch,
+      channel,
+      currentPatchNumber,
+      buildMode,
+      otaProtocolVersion,
+      engineRevision,
+      dartVersion,
+      baseSha256,
+      buildFingerprint,
+    ],
   );
 
   const patch = result.rows[0];
   if (!patch) {
+    if (currentPatchNumber > 0) {
+      const currentResult = await query(
+        `select p.enabled, k.active as key_active, k.revoked as key_revoked
+         from patches p
+         left join app_keys k
+           on k.app_id = p.app_id
+          and k.key_id = p.manifest ->> 'signature_key_id'
+         where p.app_id = $1 and p.patch_number = $2`,
+        [app.id, currentPatchNumber],
+      );
+      const current = currentResult.rows[0];
+      const withdrawn = current && (
+        !current.enabled || current.key_active !== true || current.key_revoked !== false
+      );
+      if (withdrawn) {
+        return res.json({ patch_available: false, rollback_patch_number: currentPatchNumber });
+      }
+    }
     return res.json({ patch_available: false });
   }
 

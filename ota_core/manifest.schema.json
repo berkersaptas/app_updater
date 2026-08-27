@@ -1,11 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://app_updater.example/ota/patch-manifest-v1.schema.json",
-  "title": "OTA patch manifest v1",
+  "title": "OTA patch manifest v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "ota_protocol_version",
     "release",
     "patch_number",
     "artifact_kind",
@@ -13,6 +14,8 @@
     "dart_version",
     "abi",
     "build_mode",
+    "base_sha256",
+    "build_fingerprint",
     "sha256",
     "artifact_size",
     "signature_key_id",
@@ -21,7 +24,11 @@
   ],
   "properties": {
     "schema_version": {
-      "const": 1
+      "const": 2
+    },
+    "ota_protocol_version": {
+      "const": 2,
+      "description": "Device/backend capability protocol required to select this patch."
     },
     "release": {
       "type": "string",
@@ -53,6 +60,16 @@
       "type": "string",
       "enum": ["release"]
     },
+    "base_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the exact base libapp.so this patch was built from."
+    },
+    "build_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 over protocol, release, engine, Dart, ABI, build mode, and base_sha256."
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -73,7 +90,7 @@
     "signature": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+$",
-      "description": "Base64url without padding signature over signing_payload_v1."
+      "description": "Base64url without padding signature over signing_payload_v2."
     }
   }
 }

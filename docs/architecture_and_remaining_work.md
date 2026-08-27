@@ -130,6 +130,7 @@ Current signed payload fields:
 
 ```text
 schema_version
+ota_protocol_version
 release
 patch_number
 artifact_kind
@@ -137,6 +138,8 @@ engine_revision
 dart_version
 abi
 build_mode
+base_sha256
+build_fingerprint
 sha256
 signature_key_id
 signature_algorithm

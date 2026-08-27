@@ -64,6 +64,12 @@ class _InitCommand extends Command<void> {
       ..addOption('app-slug',
           help: 'Existing app to connect, or slug for --create.')
       ..addOption('package-name', help: 'Required with --create.')
+      ..addOption('icon',
+          help:
+              'PNG, JPEG, or WebP logo path. Existing app logos change only when this is provided.')
+      ..addFlag('skip-logo',
+          negatable: false,
+          help: 'Do not auto-detect and upload a logo for a newly created app.')
       ..addFlag('create',
           negatable: false, help: 'Create a managed-signing app from the CLI.');
   }
@@ -80,14 +86,17 @@ Future<void> _init(ArgResults args) async {
 
   final configTarget = File('${projectDir.path}/app_updater.yaml');
   final yamlFile = args['yaml-file'] as String?;
+  var appCreated = false;
   if (yamlFile != null) {
     File(yamlFile).copySync(configTarget.path);
     stdout.writeln('==> Wrote app_updater.yaml');
   } else if (configTarget.existsSync()) {
     stdout.writeln('==> app_updater.yaml already present, leaving it alone');
   } else {
-    await writeConnectedConfig(args, projectDir);
+    appCreated = await writeConnectedConfig(args, projectDir);
   }
+
+  await syncInitLogo(args, projectDir, autoDetect: appCreated);
 
   _ensurePubspecDependency(projectDir);
   _ensureMainActivity(projectDir);
@@ -313,10 +322,9 @@ Future<void> _publish(ArgResults args) async {
 
   final artifactKind = args['artifact-kind'] as String;
   final baseApkPath = args['base-apk'] as String?;
-  if (artifactKind == 'binary_diff' &&
-      (baseApkPath == null || !File(baseApkPath).existsSync())) {
+  if (baseApkPath == null || !File(baseApkPath).existsSync()) {
     throw '--base-apk is required and must point to the archived, currently shipped release APK. '
-        'This is required to prove the patch changes Dart code only.';
+        'Every patch must be bound to that exact base libapp.so.';
   }
   if (artifactKind == 'full_aot_library' &&
       args['allow-full-aot-library'] != true) {
@@ -360,16 +368,15 @@ Future<void> _publish(ArgResults args) async {
   stdout.writeln('==> Extracting libapp.so');
   await extractLibapp(apk, abi, outputDir);
 
-  File? baseLibappSo;
+  final baseApk = File(baseApkPath);
+  final baseOutputDir = Directory('${outputDir.path}/base')
+    ..createSync(recursive: true);
+  stdout.writeln('==> Extracting the exact shipped base libapp.so');
+  await extractLibapp(baseApk, abi, baseOutputDir);
+  final baseLibappSo = File('${baseOutputDir.path}/libapp.so');
   if (artifactKind == 'binary_diff') {
-    final baseApk = File(baseApkPath!);
     stdout.writeln('==> Verifying this is a Dart-only patch');
     await verifyDartOnlyPatch(baseApk, apk, abi);
-    final baseOutputDir = Directory('${outputDir.path}/base')
-      ..createSync(recursive: true);
-    stdout.writeln('==> Extracting the shipped base libapp.so');
-    await extractLibapp(baseApk, abi, baseOutputDir);
-    baseLibappSo = File('${baseOutputDir.path}/libapp.so');
   }
 
   stdout.writeln('==> Reading compatibility metadata');
@@ -380,6 +387,17 @@ Future<void> _publish(ArgResults args) async {
   final dartVersion = versionJson['dartSdkVersion'] as String;
   final release = _readPubspecVersion(projectDir);
   const buildMode = 'release';
+  const otaProtocolVersion = 2;
+  final baseSha256 = sha256.convert(baseLibappSo.readAsBytesSync()).toString();
+  final buildFingerprint = computeBuildFingerprint(
+    otaProtocolVersion: otaProtocolVersion,
+    release: release,
+    engineRevision: engineRevision,
+    dartVersion: dartVersion,
+    abi: abi,
+    buildMode: buildMode,
+    baseSha256: baseSha256,
+  );
 
   final libappSo = File('${outputDir.path}/libapp.so');
   final hash = sha256.convert(libappSo.readAsBytesSync()).toString();
@@ -389,7 +407,7 @@ Future<void> _publish(ArgResults args) async {
     stdout.writeln('==> Computing a binary diff against the base artifact');
     final diffPath = '${outputDir.path}/libapp.so.diff';
     uploadedArtifact = await generateBinaryDiff(
-      baseLibappSo!,
+      baseLibappSo,
       libappSo,
       File(diffPath),
     );
@@ -402,7 +420,8 @@ Future<void> _publish(ArgResults args) async {
   final payloadFile = File('${outputDir.path}/patch_payload.txt');
   writeManifestPayload(
     payloadFile,
-    schemaVersion: 1,
+    schemaVersion: 2,
+    otaProtocolVersion: otaProtocolVersion,
     release: release,
     patchNumber: patchNumber,
     artifactKind: artifactKind,
@@ -410,6 +429,8 @@ Future<void> _publish(ArgResults args) async {
     dartVersion: dartVersion,
     abi: abi,
     buildMode: buildMode,
+    baseSha256: baseSha256,
+    buildFingerprint: buildFingerprint,
     sha256Hash: hash,
     signatureKeyId: keyId,
     signatureAlgorithm: algorithm,
@@ -418,7 +439,8 @@ Future<void> _publish(ArgResults args) async {
   payloadFile.deleteSync();
 
   final manifest = {
-    'schema_version': 1,
+    'schema_version': 2,
+    'ota_protocol_version': otaProtocolVersion,
     'release': release,
     'patch_number': patchNumber,
     'artifact_kind': artifactKind,
@@ -426,6 +448,8 @@ Future<void> _publish(ArgResults args) async {
     'dart_version': dartVersion,
     'abi': abi,
     'build_mode': buildMode,
+    'base_sha256': baseSha256,
+    'build_fingerprint': buildFingerprint,
     'sha256': hash,
     'artifact_size': artifactSize,
     'signature_key_id': keyId,

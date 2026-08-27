@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 export function canonicalPayload(manifest) {
   return (
     `schema_version=${manifest.schema_version}\n` +
+    `ota_protocol_version=${manifest.ota_protocol_version}\n` +
     `release=${manifest.release}\n` +
     `patch_number=${manifest.patch_number}\n` +
     `artifact_kind=${manifest.artifact_kind}\n` +
@@ -15,6 +16,8 @@ export function canonicalPayload(manifest) {
     `dart_version=${manifest.dart_version}\n` +
     `abi=${manifest.abi}\n` +
     `build_mode=${manifest.build_mode}\n` +
+    `base_sha256=${manifest.base_sha256}\n` +
+    `build_fingerprint=${manifest.build_fingerprint}\n` +
     `sha256=${manifest.sha256}\n` +
     `signature_key_id=${manifest.signature_key_id}\n` +
     `signature_algorithm=${manifest.signature_algorithm}\n`

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query } from '../../db.js';
+import { pool, query } from '../../db.js';
 import { requireApp } from '../../appLookup.js';
 import { asyncHandler } from '../../asyncHandler.js';
 
@@ -38,14 +38,32 @@ keysRouter.delete('/apps/:appSlug/keys/:keyId', asyncHandler(async (req, res) =>
   const app = await requireApp(req, res);
   if (!app) return;
 
-  const result = await query(
-    `update app_keys set revoked = true where app_id = $1 and key_id = $2 returning *`,
-    [app.id, req.params.keyId],
-  );
-  if (result.rowCount === 0) {
-    return res.status(404).json({ error: `Unknown key id: ${req.params.keyId}` });
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const result = await client.query(
+      `update app_keys set revoked = true where app_id = $1 and key_id = $2 returning *`,
+      [app.id, req.params.keyId],
+    );
+    if (result.rowCount === 0) {
+      await client.query('rollback');
+      return res.status(404).json({ error: `Unknown key id: ${req.params.keyId}` });
+    }
+    const disabled = await client.query(
+      `update patches
+       set enabled = false
+       where app_id = $1 and manifest ->> 'signature_key_id' = $2 and enabled = true
+       returning patch_number`,
+      [app.id, req.params.keyId],
+    );
+    await client.query('commit');
+    res.json({ ...result.rows[0], disabled_patch_count: disabled.rowCount });
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
   }
-  res.json(result.rows[0]);
 }));
 
 keysRouter.get('/apps/:appSlug/keys', asyncHandler(async (req, res) => {

@@ -33,7 +33,8 @@ void main() {
     final output = File('${temporary.path}/payload.txt');
     writeManifestPayload(
       output,
-      schemaVersion: 1,
+      schemaVersion: 2,
+      otaProtocolVersion: 2,
       release: '1.0.0+1',
       patchNumber: 2,
       artifactKind: 'binary_diff',
@@ -41,6 +42,8 @@ void main() {
       dartVersion: '3.4.0',
       abi: 'arm64-v8a',
       buildMode: 'release',
+      baseSha256: 'c' * 64,
+      buildFingerprint: 'd' * 64,
       sha256Hash: 'b' * 64,
       signatureKeyId: 'release-2026',
       signatureAlgorithm: 'rsa_pkcs1_sha256',
@@ -57,7 +60,8 @@ void main() {
     expect(
       () => writeManifestPayload(
         File('${temporary.path}/payload.txt'),
-        schemaVersion: 1,
+        schemaVersion: 2,
+        otaProtocolVersion: 2,
         release: '1.0.0+1\nmalicious=true',
         patchNumber: 2,
         artifactKind: 'binary_diff',
@@ -65,11 +69,28 @@ void main() {
         dartVersion: '3.4.0',
         abi: 'arm64-v8a',
         buildMode: 'release',
+        baseSha256: 'c' * 64,
+        buildFingerprint: 'd' * 64,
         sha256Hash: 'b' * 64,
         signatureKeyId: 'release-2026',
         signatureAlgorithm: 'rsa_pkcs1_sha256',
       ),
       throwsA(anything),
+    );
+  });
+
+  test('build fingerprint matches shell, backend, and Android contract', () {
+    expect(
+      computeBuildFingerprint(
+        otaProtocolVersion: 2,
+        release: '1.0.0+1',
+        engineRevision: '83675ed27633283e7fc296c8bca22e841224c096',
+        dartVersion: '3.12.2',
+        abi: 'arm64-v8a',
+        buildMode: 'release',
+        baseSha256: 'a' * 64,
+      ),
+      '46612b3568f1b3220765c4138063d6940fdb87bc5dd5197555bd3c188e0be766',
     );
   });
 

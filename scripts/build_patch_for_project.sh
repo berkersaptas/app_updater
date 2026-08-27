@@ -13,7 +13,7 @@ Usage: scripts/build_patch_for_project.sh \
   --project-dir <path> --entrypoint <path-relative-to-project> --patch-number <n> \
   --key-id <key-id> --private-key <path-to-pem> \
   [--algorithm rsa_pkcs1_sha256|ed25519] [--artifact-kind binary_diff|full_aot_library] \
-  [--base-apk <path>] [--allow-full-aot-library] \
+  --base-apk <archived-market-apk> [--allow-full-aot-library] \
   [--target-platform android-arm64|android-arm|android-x64] \
   [--output-dir <path>]
 
@@ -65,9 +65,8 @@ done
 [[ -d "$project_dir" ]] || { echo "Project directory does not exist: $project_dir" >&2; exit 1; }
 [[ -f "$project_dir/$entrypoint" ]] || { echo "Entrypoint not found: $project_dir/$entrypoint" >&2; exit 1; }
 [[ -f "$private_key" ]] || { echo "Private key not found: $private_key" >&2; exit 1; }
-if [[ "$artifact_kind" == binary_diff ]]; then
-  [[ -f "$base_apk" ]] || { echo "--base-apk is required for binary_diff Dart-only verification" >&2; exit 1; }
-elif ! $allow_full_aot_library; then
+[[ -f "$base_apk" ]] || { echo "--base-apk is required to bind the patch to the exact market base" >&2; exit 1; }
+if [[ "$artifact_kind" != binary_diff ]] && ! $allow_full_aot_library; then
   echo "full_aot_library is blocked by default; use binary_diff or explicitly pass --allow-full-aot-library for POC use" >&2
   exit 1
 fi
@@ -91,13 +90,14 @@ apk="$project_dir/build/app/outputs/flutter-apk/app-release.apk"
 step "Extracting libapp.so"
 "$repo_dir/scripts/extract_artifacts.sh" "$apk" "$abi" "$output_dir"
 
+step "Extracting the exact market base libapp.so"
+mkdir -p "$output_dir/base"
+"$repo_dir/scripts/extract_artifacts.sh" "$base_apk" "$abi" "$output_dir/base"
+base_libapp_so="$output_dir/base/libapp.so"
+
 if [[ "$artifact_kind" == binary_diff ]]; then
   step "Verifying this is a Dart-only patch"
   "$repo_dir/scripts/verify_dart_only_patch.sh" "$base_apk" "$apk" "$abi"
-  step "Extracting the shipped base libapp.so"
-  mkdir -p "$output_dir/base"
-  "$repo_dir/scripts/extract_artifacts.sh" "$base_apk" "$abi" "$output_dir/base"
-  base_libapp_so="$output_dir/base/libapp.so"
 fi
 
 step "Reading compatibility metadata (engine/Dart version, release)"
@@ -109,6 +109,12 @@ dart_version="$(printf '%s\n' "$version_output" | sed -n 's/.*"dartSdkVersion": 
 release="$(sed -n 's/^version:[[:space:]]*//p' "$project_dir/pubspec.yaml" | head -1)"
 [[ -n "$release" ]] || { echo "Could not read version from $project_dir/pubspec.yaml" >&2; exit 1; }
 build_mode="release"
+ota_protocol_version=2
+base_sha256="$(shasum -a 256 "$base_libapp_so" | awk '{print $1}')"
+build_fingerprint="$(
+  "$repo_dir/scripts/compute_build_fingerprint.sh" "$ota_protocol_version" "$release" \
+    "$engine_revision" "$dart_version" "$abi" "$build_mode" "$base_sha256"
+)"
 
 if [[ "$artifact_kind" == binary_diff ]]; then
   step "Computing a binary diff against the base artifact"
@@ -125,8 +131,9 @@ hash="$(awk '{print $1}' "$output_dir/libapp.so.sha256")"
 
 step "Signing the manifest"
 payload="$output_dir/patch_payload.txt"
-"$repo_dir/scripts/write_manifest_payload.sh" "$payload" 1 "$release" "$patch_number" \
-  "$artifact_kind" "$engine_revision" "$dart_version" "$abi" "$build_mode" "$hash" \
+"$repo_dir/scripts/write_manifest_payload.sh" "$payload" 2 "$ota_protocol_version" "$release" "$patch_number" \
+  "$artifact_kind" "$engine_revision" "$dart_version" "$abi" "$build_mode" \
+  "$base_sha256" "$build_fingerprint" "$hash" \
   "$key_id" "$algorithm"
 case "$algorithm" in
   ed25519)
@@ -140,9 +147,9 @@ case "$algorithm" in
 esac
 rm -f "$payload"
 
-printf '{\n  "schema_version": 1,\n  "release": "%s",\n  "patch_number": %s,\n  "artifact_kind": "%s",\n  "engine_revision": "%s",\n  "dart_version": "%s",\n  "abi": "%s",\n  "build_mode": "%s",\n  "sha256": "%s",\n  "artifact_size": %s,\n  "signature_key_id": "%s",\n  "signature_algorithm": "%s",\n  "signature": "%s"\n}\n' \
-  "$release" "$patch_number" "$artifact_kind" "$engine_revision" "$dart_version" "$abi" \
-  "$build_mode" "$hash" "$artifact_size" "$key_id" "$algorithm" "$signature" \
+printf '{\n  "schema_version": 2,\n  "ota_protocol_version": %s,\n  "release": "%s",\n  "patch_number": %s,\n  "artifact_kind": "%s",\n  "engine_revision": "%s",\n  "dart_version": "%s",\n  "abi": "%s",\n  "build_mode": "%s",\n  "base_sha256": "%s",\n  "build_fingerprint": "%s",\n  "sha256": "%s",\n  "artifact_size": %s,\n  "signature_key_id": "%s",\n  "signature_algorithm": "%s",\n  "signature": "%s"\n}\n' \
+  "$ota_protocol_version" "$release" "$patch_number" "$artifact_kind" "$engine_revision" "$dart_version" "$abi" \
+  "$build_mode" "$base_sha256" "$build_fingerprint" "$hash" "$artifact_size" "$key_id" "$algorithm" "$signature" \
   > "$output_dir/patch_manifest.json"
 
 echo

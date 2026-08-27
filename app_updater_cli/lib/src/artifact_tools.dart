@@ -260,6 +260,7 @@ Future<File> generateBinaryDiff(
 void writeManifestPayload(
   File output, {
   required int schemaVersion,
+  required int otaProtocolVersion,
   required String release,
   required int patchNumber,
   required String artifactKind,
@@ -267,11 +268,14 @@ void writeManifestPayload(
   required String dartVersion,
   required String abi,
   required String buildMode,
+  required String baseSha256,
+  required String buildFingerprint,
   required String sha256Hash,
   required String signatureKeyId,
   required String signatureAlgorithm,
 }) {
-  if (schemaVersion != 1) throw 'Unsupported schema version.';
+  if (schemaVersion != 2) throw 'Unsupported schema version.';
+  if (otaProtocolVersion != 2) throw 'Unsupported OTA protocol version.';
   if (patchNumber < 0) throw 'Invalid patch number.';
   if (!{'full_aot_library', 'binary_diff'}.contains(artifactKind)) {
     throw 'Invalid artifact kind.';
@@ -281,6 +285,10 @@ void writeManifestPayload(
   }
   if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(sha256Hash)) {
     throw 'Invalid sha256.';
+  }
+  if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(baseSha256) ||
+      !RegExp(r'^[0-9a-f]{64}$').hasMatch(buildFingerprint)) {
+    throw 'Invalid base SHA-256 or build fingerprint.';
   }
   if (!RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(signatureKeyId)) {
     throw 'Invalid signature key id.';
@@ -296,6 +304,7 @@ void writeManifestPayload(
   output.parent.createSync(recursive: true);
   output.writeAsStringSync(
     'schema_version=$schemaVersion\n'
+    'ota_protocol_version=$otaProtocolVersion\n'
     'release=$release\n'
     'patch_number=$patchNumber\n'
     'artifact_kind=$artifactKind\n'
@@ -303,10 +312,31 @@ void writeManifestPayload(
     'dart_version=$dartVersion\n'
     'abi=$abi\n'
     'build_mode=$buildMode\n'
+    'base_sha256=$baseSha256\n'
+    'build_fingerprint=$buildFingerprint\n'
     'sha256=$sha256Hash\n'
     'signature_key_id=$signatureKeyId\n'
     'signature_algorithm=$signatureAlgorithm\n',
   );
+}
+
+String computeBuildFingerprint({
+  required int otaProtocolVersion,
+  required String release,
+  required String engineRevision,
+  required String dartVersion,
+  required String abi,
+  required String buildMode,
+  required String baseSha256,
+}) {
+  final payload = 'ota_protocol_version=$otaProtocolVersion\n'
+      'release=$release\n'
+      'engine_revision=$engineRevision\n'
+      'dart_version=$dartVersion\n'
+      'abi=$abi\n'
+      'build_mode=$buildMode\n'
+      'base_sha256=$baseSha256\n';
+  return sha256.convert(utf8.encode(payload)).toString();
 }
 
 void _validateArchiveAndAbi(File archive, String abi) {

@@ -13,7 +13,7 @@ Shared pieces:
 
 - `ota_core/manifest.schema.json`
 - `ota_core/ios_interpreted_patch.schema.json`
-- `ota_core/signing_payload_v1.txt`
+- `ota_core/signing_payload_v2.txt`
 - `ota_core/lifecycle.md`
 - keyring and revocation semantics
 - bad-patch quarantine semantics

@@ -2,8 +2,9 @@ package com.berkersaptas.app_updater.ota_runtime
 
 object OtaManifestContract {
     const val CORE_SPEC = "ota_core/manifest.schema.json"
-    const val CORE_SIGNING_PAYLOAD = "ota_core/signing_payload_v1.txt"
-    const val SCHEMA_VERSION = 1
+    const val CORE_SIGNING_PAYLOAD = "ota_core/signing_payload_v2.txt"
+    const val SCHEMA_VERSION = 2
+    const val OTA_PROTOCOL_VERSION = 2
     const val ARTIFACT_NAME = "libapp.so"
     const val ARTIFACT_DIFF_NAME = "libapp.so.diff"
     const val ARTIFACT_RECONSTRUCTED_NAME = "libapp.reconstructed.so"

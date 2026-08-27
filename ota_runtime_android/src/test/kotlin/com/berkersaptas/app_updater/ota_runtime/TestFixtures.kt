@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.util.Base64
 import androidx.test.core.app.ApplicationProvider
 import java.security.KeyPairGenerator
+import java.security.MessageDigest
 import java.security.Signature
 import org.robolectric.Shadows.shadowOf
 
@@ -17,6 +18,10 @@ internal object TestFixtures {
     const val ENGINE_REVISION = "test-engine"
     const val DART_VERSION = "3.0.0"
     const val BUILD_MODE = "release"
+    private val baseArtifactBytes = "test-base-libapp".toByteArray()
+    val BASE_SHA256: String = MessageDigest.getInstance("SHA-256")
+        .digest(baseArtifactBytes)
+        .joinToString("") { "%02x".format(it) }
 
     fun context(): Context = ApplicationProvider.getApplicationContext()
 
@@ -41,6 +46,10 @@ internal object TestFixtures {
             applicationInfo = ApplicationInfo().apply {
                 this.packageName = packageName
                 this.metaData = metaData
+                nativeLibraryDir = context.filesDir.resolve("test-native-libs").also {
+                    it.mkdirs()
+                    it.resolve("libapp.so").writeBytes(baseArtifactBytes)
+                }.absolutePath
             }
         }
         shadowOf(context.packageManager).installPackage(packageInfo)
@@ -63,6 +72,15 @@ internal object TestFixtures {
         val keyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.genKeyPair()
         val release = installedRelease(context)
         val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "test-abi"
+        val buildFingerprint = InstalledBuildIdentity.fingerprint(
+            OtaManifestContract.OTA_PROTOCOL_VERSION,
+            release,
+            ENGINE_REVISION,
+            DART_VERSION,
+            abi,
+            BUILD_MODE,
+            BASE_SHA256,
+        )
         var patch = PatchState(
             enabled = true,
             release = release,
@@ -78,6 +96,8 @@ internal object TestFixtures {
             signatureAlgorithm = OtaManifestContract.SIGNATURE_ALGORITHM_RSA_PKCS1_SHA256,
             signature = "",
             state = PatchState.STATUS_PENDING,
+            baseSha256 = BASE_SHA256,
+            buildFingerprint = buildFingerprint,
         )
         val signer = Signature.getInstance("SHA256withRSA").apply {
             initSign(keyPair.private)
@@ -91,6 +111,7 @@ internal object TestFixtures {
     // class-private (not merely internal), and a fixture must sign the exact bytes verify() checks.
     private fun canonicalPayload(patch: PatchState): String = buildString {
         append("schema_version=").append(patch.schemaVersion).append('\n')
+        append("ota_protocol_version=").append(patch.otaProtocolVersion).append('\n')
         append("release=").append(patch.release).append('\n')
         append("patch_number=").append(patch.patchNumber).append('\n')
         append("artifact_kind=").append(patch.artifactKind).append('\n')
@@ -98,6 +119,8 @@ internal object TestFixtures {
         append("dart_version=").append(patch.dartVersion).append('\n')
         append("abi=").append(patch.abi).append('\n')
         append("build_mode=").append(patch.buildMode).append('\n')
+        append("base_sha256=").append(patch.baseSha256).append('\n')
+        append("build_fingerprint=").append(patch.buildFingerprint).append('\n')
         append("sha256=").append(patch.sha256).append('\n')
         append("signature_key_id=").append(patch.signatureKeyId).append('\n')
         append("signature_algorithm=").append(patch.signatureAlgorithm).append('\n')

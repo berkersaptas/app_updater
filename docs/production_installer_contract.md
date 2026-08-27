@@ -32,7 +32,13 @@ A device-side updater should send a request shaped like:
   "release_version": "1.0.0+1",
   "current_patch_number": 1,
   "platform": "android",
-  "arch": "arm64-v8a"
+  "arch": "arm64-v8a",
+  "ota_protocol_version": 2,
+  "engine_revision": "83675ed27633283e7fc296c8bca22e841224c096",
+  "dart_version": "3.12.2",
+  "build_mode": "release",
+  "base_sha256": "64-hex",
+  "build_fingerprint": "64-hex"
 }
 ```
 
@@ -50,7 +56,8 @@ interpreter/linker format is defined.
     "hash": "sha256",
     "download_url": "https://cdn.example/patches/2",
     "manifest": {
-      "schema_version": 1,
+      "schema_version": 2,
+      "ota_protocol_version": 2,
       "release": "1.0.0+1",
       "patch_number": 2,
       "artifact_kind": "binary_diff",
@@ -58,6 +65,8 @@ interpreter/linker format is defined.
       "dart_version": "3.x.x",
       "abi": "arm64-v8a",
       "build_mode": "release",
+      "base_sha256": "64-hex",
+      "build_fingerprint": "64-hex",
       "sha256": "64-hex",
       "artifact_size": 34608,
       "signature_key_id": "release-key",
@@ -68,6 +77,27 @@ interpreter/linker format is defined.
 }
 ```
 
+`build_fingerprint` is SHA-256 over protocol version, installed market release, engine revision,
+Dart version, ABI, build mode, and the exact packaged base `libapp.so` SHA-256. The Android client
+hashes the installed library (including split-APK lookup) rather than trusting build-time claims.
+The backend validates the fingerprint and only selects a manifest whose complete identity matches.
+An older client that does not send capability fields receives
+`{"patch_available":false,"client_upgrade_required":true}`; it never receives a best-effort patch.
+
+If the device's current patch was disabled or its signing key was revoked and no newer eligible
+patch exists, the backend returns a rollback directive instead of offering that patch again:
+
+```json
+{
+  "patch_available": false,
+  "rollback_patch_number": 2
+}
+```
+
+The client marks the matching local patch `disabled`. The current process keeps running, and the
+packaged store artifact is selected on the next cold launch. Backend unavailability never causes a
+rollback; an explicit authenticated disable/revoke action is required.
+
 `artifact_kind` is part of the signed manifest payload. Android implements both artifact kinds,
 but Play/production ingestion accepts only Shorebird-style `binary_diff`; `full_aot_library` is a
 double-opt-in local POC path. See `google_play_compliance.md`. iOS uses the separate
@@ -76,8 +106,8 @@ double-opt-in local POC path. See `google_play_compliance.md`. iOS uses the sepa
 ## Install sequence
 
 1. Check for a patch on a background thread at startup.
-2. Ignore responses for a different release, platform, architecture, build mode, engine revision, or
-   Dart version.
+2. Backend-select only an exact protocol/release/engine/Dart/ABI/build-mode/base-SHA/fingerprint
+   match; repeat those checks independently on-device before boot.
 3. Download the artifact into a staging directory and enforce `artifact_size`.
 4. Verify manifest schema, trusted key, revocation list, and signature.
 5. Resolve/apply the artifact according to `artifact_kind`.

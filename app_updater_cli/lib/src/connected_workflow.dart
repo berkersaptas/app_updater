@@ -62,6 +62,13 @@ class _Client {
     return _decode(response);
   }
 
+  Future<dynamic> putFile(String path, String field, File file) async {
+    final request = http.MultipartRequest('PUT', uri(path))
+      ..headers.addAll(headers)
+      ..files.add(await http.MultipartFile.fromPath(field, file.path));
+    return _decode(await http.Response.fromStream(await request.send()));
+  }
+
   dynamic _decode(http.Response response) {
     final body =
         response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
@@ -151,6 +158,12 @@ void addConnectedInitOptions(ArgParser parser) {
     ..addOption('app-slug',
         help: 'Existing app to connect, or slug for --create.')
     ..addOption('package-name', help: 'Required with --create.')
+    ..addOption('icon',
+        help:
+            'PNG, JPEG, or WebP logo path. Existing app logos change only when this is provided.')
+    ..addFlag('skip-logo',
+        negatable: false,
+        help: 'Do not auto-detect and upload a logo for a newly created app.')
     ..addFlag('create',
         negatable: false, help: 'Create a managed-signing app from the CLI.');
 }
@@ -185,7 +198,109 @@ Future<bool> writeConnectedConfig(ArgResults args, Directory projectDir) async {
   File('${projectDir.path}/app_updater.yaml')
       .writeAsStringSync(response['yaml'] as String);
   stdout.writeln('==> Connected to $slug and wrote app_updater.yaml');
-  return true;
+  return create;
+}
+
+Future<void> syncInitLogo(
+  ArgResults args,
+  Directory projectDir, {
+  required bool autoDetect,
+}) async {
+  if (args.options.contains('skip-logo') && args['skip-logo'] == true) return;
+  final explicitPath =
+      args.options.contains('icon') ? args['icon'] as String? : null;
+  if (!autoDetect && (explicitPath == null || explicitPath.isEmpty)) return;
+
+  final logo = explicitPath == null || explicitPath.isEmpty
+      ? _detectProjectLogo(projectDir)
+      : _resolveProjectFile(projectDir, explicitPath);
+  if (logo == null) {
+    stdout.writeln(
+        '==> No launcher logo source found; the portal will use a letter fallback');
+    return;
+  }
+  if (!logo.existsSync()) {
+    if (explicitPath != null && explicitPath.isNotEmpty) {
+      throw 'Logo file does not exist: ${logo.path}';
+    }
+    stdout.writeln(
+        '==> Detected logo path does not exist; the portal will use a letter fallback');
+    return;
+  }
+
+  final configFile = File('${projectDir.path}/app_updater.yaml');
+  final config = loadYaml(configFile.readAsStringSync()) as YamlMap;
+  final appSlug = config['app_slug'] as String?;
+  if (appSlug == null || appSlug.isEmpty) {
+    throw '${configFile.path} has no app_slug.';
+  }
+
+  try {
+    final client = _Client(_Credentials.load());
+    await client.putFile(
+      '/v1/cli/apps/${Uri.encodeComponent(appSlug)}/logo',
+      'logo',
+      logo,
+    );
+    stdout.writeln('==> Uploaded app logo from ${logo.path}');
+  } catch (error) {
+    // Automatic discovery is a convenience and must not leave a newly provisioned app looking
+    // like init failed. An explicitly requested replacement remains strict and reports failure.
+    if (explicitPath != null && explicitPath.isNotEmpty) rethrow;
+    stdout.writeln('==> Could not upload the detected app logo: $error');
+    stdout.writeln(
+        '    Project setup will continue with the portal fallback logo.');
+  }
+}
+
+File _resolveProjectFile(Directory projectDir, String filePath) {
+  final file = File(filePath);
+  return file.isAbsolute ? file : File('${projectDir.path}/$filePath');
+}
+
+File? _detectProjectLogo(Directory projectDir) {
+  final yamlFiles = <({File file, bool allowTopLevel})>[
+    (file: File('${projectDir.path}/pubspec.yaml'), allowTopLevel: false),
+    (
+      file: File('${projectDir.path}/flutter_launcher_icons.yaml'),
+      allowTopLevel: true,
+    ),
+    (
+      file: File('${projectDir.path}/flutter_launcher_icons.yml'),
+      allowTopLevel: true,
+    ),
+  ];
+  for (final yamlFile in yamlFiles) {
+    if (!yamlFile.file.existsSync()) continue;
+    final document = loadYaml(yamlFile.file.readAsStringSync());
+    if (document is! YamlMap) continue;
+    final sections = <dynamic>[
+      document['flutter_launcher_icons'],
+      document['flutter_icons'],
+      if (yamlFile.allowTopLevel) document,
+    ];
+    for (final section in sections) {
+      if (section is! YamlMap) continue;
+      for (final key in const ['image_path_android', 'image_path']) {
+        final value = section[key];
+        if (value is String && value.trim().isNotEmpty) {
+          final candidate = _resolveProjectFile(projectDir, value.trim());
+          if (candidate.existsSync()) return candidate;
+        }
+      }
+    }
+  }
+
+  for (final candidatePath in const [
+    'assets/icon/app_icon.png',
+    'assets/icons/app_icon.png',
+    'assets/icon/icon.png',
+    'assets/icons/icon.png',
+  ]) {
+    final candidate = _resolveProjectFile(projectDir, candidatePath);
+    if (candidate.existsSync()) return candidate;
+  }
+  return null;
 }
 
 class ReleaseCommand extends Command<void> {
@@ -284,8 +399,18 @@ class _ReleaseAndroidCommand extends _AndroidCommand {
     final validationDir = Directory(
         '${projectDir.path}/build/app_updater_release/$release/$selectedAbi')
       ..createSync(recursive: true);
-    await extractLibapp(aab, selectedAbi, validationDir);
+    final baseLibapp = await extractLibapp(aab, selectedAbi, validationDir);
     final metadata = await toolchain(projectDir);
+    final baseSha256 = sha256.convert(baseLibapp.readAsBytesSync()).toString();
+    final buildFingerprint = computeBuildFingerprint(
+      otaProtocolVersion: 2,
+      release: release,
+      engineRevision: metadata['engineRevision'] as String,
+      dartVersion: metadata['dartSdkVersion'] as String,
+      abi: selectedAbi,
+      buildMode: 'release',
+      baseSha256: baseSha256,
+    );
     final commit = await _captureOrEmpty('git', ['rev-parse', 'HEAD'],
         cwd: projectDir.path);
     final credentials = _Credentials.load();
@@ -299,6 +424,9 @@ class _ReleaseAndroidCommand extends _AndroidCommand {
         'engine_revision': metadata['engineRevision'] as String,
         'dart_version': metadata['dartSdkVersion'] as String,
         'abi': selectedAbi,
+        'ota_protocol_version': '2',
+        'base_sha256': baseSha256,
+        'build_fingerprint': buildFingerprint,
         'source_commit': commit.trim(),
       })
       ..files.add(await http.MultipartFile.fromPath('artifact', aab.path,
@@ -357,7 +485,7 @@ class _PatchAndroidCommand extends _AndroidCommand {
       ..createSync(recursive: true);
     final patchDir = Directory('${outputDir.path}/candidate')
       ..createSync(recursive: true);
-    await extractLibapp(baseAab, selectedAbi, baseDir);
+    final baseLibapp = await extractLibapp(baseAab, selectedAbi, baseDir);
     await extractLibapp(patchAab, selectedAbi, patchDir);
     final diff = File('${outputDir.path}/libapp.so.diff');
     await generateBinaryDiff(
@@ -367,14 +495,27 @@ class _PatchAndroidCommand extends _AndroidCommand {
     );
     final target = File('${patchDir.path}/libapp.so');
     final metadata = await toolchain(projectDir);
+    final baseSha256 = sha256.convert(baseLibapp.readAsBytesSync()).toString();
+    final buildFingerprint = computeBuildFingerprint(
+      otaProtocolVersion: 2,
+      release: release,
+      engineRevision: metadata['engineRevision'] as String,
+      dartVersion: metadata['dartSdkVersion'] as String,
+      abi: selectedAbi,
+      buildMode: 'release',
+      baseSha256: baseSha256,
+    );
     final unsignedManifest = {
-      'schema_version': 1,
+      'schema_version': 2,
+      'ota_protocol_version': 2,
       'release': release,
       'artifact_kind': 'binary_diff',
       'engine_revision': metadata['engineRevision'],
       'dart_version': metadata['dartSdkVersion'],
       'abi': selectedAbi,
       'build_mode': 'release',
+      'base_sha256': baseSha256,
+      'build_fingerprint': buildFingerprint,
       'sha256': sha256.convert(target.readAsBytesSync()).toString(),
       'artifact_size': diff.lengthSync(),
     };

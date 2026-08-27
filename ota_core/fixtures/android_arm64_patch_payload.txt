@@ -1,4 +1,5 @@
-schema_version=1
+schema_version=2
+ota_protocol_version=2
 release=1.0.0+1
 patch_number=1
 artifact_kind=full_aot_library
@@ -6,6 +7,8 @@ engine_revision=83675ed27633283e7fc296c8bca22e841224c096
 dart_version=3.12.2
 abi=arm64-v8a
 build_mode=release
+base_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+build_fingerprint=46612b3568f1b3220765c4138063d6940fdb87bc5dd5197555bd3c188e0be766
 sha256=ec59d1df4b8a03d38eaf99f01a599eb7e2572f4c4f6f694a409e6da2304a9cb7
 signature_key_id=dev-ed25519-v1
 signature_algorithm=ed25519

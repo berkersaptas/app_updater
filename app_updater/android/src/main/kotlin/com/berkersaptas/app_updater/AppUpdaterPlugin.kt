@@ -92,6 +92,7 @@ class AppUpdaterPlugin : FlutterPlugin, MethodCallHandler {
     private fun OtaUpdateResult.toChannelMap(): Map<String, Any?> = when (this) {
         is OtaUpdateResult.NoUpdateAvailable -> mapOf("status" to "noUpdateAvailable")
         is OtaUpdateResult.Installed -> mapOf("status" to "installed", "patchNumber" to patchNumber)
+        is OtaUpdateResult.RolledBack -> mapOf("status" to "rolledBack", "patchNumber" to patchNumber)
         is OtaUpdateResult.Failed -> mapOf("status" to "failed", "reason" to reason)
     }
 

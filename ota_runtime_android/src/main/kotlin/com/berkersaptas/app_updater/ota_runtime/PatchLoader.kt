@@ -107,7 +107,9 @@ internal class PatchLoader(private val context: Context, private val store: Patc
 
     private fun compatibilityFailure(patch: PatchState): String? {
         val installedRelease = installedRelease(context)
-        return when {
+        val basicFailure = when {
+            patch.otaProtocolVersion != OtaManifestContract.OTA_PROTOCOL_VERSION ->
+                "OTA protocol mismatch: patch=${patch.otaProtocolVersion}, app=${OtaManifestContract.OTA_PROTOCOL_VERSION}"
             patch.release != installedRelease ->
                 "Base release mismatch: patch=${patch.release}, app=$installedRelease"
             patch.engineRevision != config.engineRevision ->
@@ -118,6 +120,23 @@ internal class PatchLoader(private val context: Context, private val store: Patc
                 "Build mode mismatch: patch=${patch.buildMode}, app=${config.buildMode}"
             Build.SUPPORTED_ABIS.firstOrNull() != patch.abi ->
                 "ABI mismatch: patch=${patch.abi}, device=${Build.SUPPORTED_ABIS.firstOrNull()}"
+            else -> null
+        }
+        if (basicFailure != null) return basicFailure
+
+        val identity = InstalledBuildIdentity.resolve(
+            context,
+            installedRelease,
+            config.engineRevision,
+            config.dartVersion,
+            patch.abi,
+            config.buildMode,
+        ) ?: return "Base libapp.so identity could not be determined"
+        return when {
+            patch.baseSha256 != identity.baseSha256 ->
+                "Base libapp.so mismatch: patch=${patch.baseSha256}, app=${identity.baseSha256}"
+            patch.buildFingerprint != identity.fingerprint ->
+                "Build fingerprint mismatch: patch=${patch.buildFingerprint}, app=${identity.fingerprint}"
             else -> null
         }
     }

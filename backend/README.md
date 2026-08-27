@@ -83,7 +83,8 @@ needed for any of this — it's meant for individual developers to use directly:
 2. **Create an app** from the dashboard (`/`) or with `app_updater init --create`. You become its
    `owner`. The server generates an RSA-3072 signer, publishes only its public key in the app
    configuration, and stores the private key encrypted with `SIGNING_MASTER_KEY`. No secret is
-   shown to or copied by the developer.
+   shown to or copied by the developer. CLI creation also discovers and uploads the Flutter
+   launcher logo when available.
 3. **Invite teammates** from the app's page (`/apps/<slug>`) — owners can invite any already-
    registered user by email as `owner` or `member`; only owners can invite/remove people, and an
    app always keeps at least one owner. Members can upload/enable/disable patches but not manage
@@ -91,6 +92,12 @@ needed for any of this — it's meant for individual developers to use directly:
 4. **Build releases and patches** with `app_updater release android` and `app_updater patch android`.
    Patches can still be toggled from the app page. The old manual upload remains available for
    legacy externally signed apps.
+
+App logos are independent profile assets, not release/patch metadata. Owners can replace or remove
+them from the app page or upload one with `app_updater init --icon path/to/logo.png`. Images are
+validated, stripped of source metadata, center-cropped, and stored as 64 px and 256 px WebP
+variants. Existing apps need no migration work in the client: they render a letter fallback until
+a logo is uploaded.
 
 `scripts/verify_portal.sh` exercises this end to end against a real Docker backend: two accounts,
 self-service app creation with a returned key/yaml, an uninvited user denied access, an invited
@@ -190,7 +197,7 @@ curl -s -X POST "$API/admin/apps/sample-app-android/patches" -H "X-Api-Key: $KEY
 
 # 4. A device checks for a patch.
 curl -s -X POST "$API/v1/apps/sample-app-android/patch-check" -H "Content-Type: application/json" \
-  -d '{"channel":"stable","release_version":"1.0.0+1","current_patch_number":0,"platform":"android","arch":"arm64-v8a"}'
+  -d '{"channel":"stable","release_version":"1.0.0+1","current_patch_number":0,"platform":"android","arch":"arm64-v8a","ota_protocol_version":2,"engine_revision":"<40-hex>","dart_version":"<version>","build_mode":"release","base_sha256":"<64-hex>","build_fingerprint":"<64-hex>"}'
 
 # 5. Download the artifact the patch-check response pointed at.
 curl -s "$API/v1/apps/sample-app-android/patches/1/artifact" -o downloaded.diff
@@ -203,7 +210,7 @@ curl -s -X POST "$API/v1/apps/sample-app-android/events" -H "Content-Type: appli
 curl -s -X PATCH "$API/admin/apps/sample-app-android/patches/1" -H "X-Api-Key: $KEY" -H "Content-Type: application/json" \
   -d '{"enabled":false}'
 curl -s -X POST "$API/v1/apps/sample-app-android/patch-check" -H "Content-Type: application/json" \
-  -d '{"channel":"stable","release_version":"1.0.0+1","current_patch_number":0,"platform":"android","arch":"arm64-v8a"}'
+  -d '{"channel":"stable","release_version":"1.0.0+1","current_patch_number":1,"platform":"android","arch":"arm64-v8a","ota_protocol_version":2,"engine_revision":"<40-hex>","dart_version":"<version>","build_mode":"release","base_sha256":"<64-hex>","build_fingerprint":"<64-hex>"}'
 ```
 
 ## Client wiring

@@ -24,6 +24,9 @@ engine_revision="$(json_string engine_revision)"
 dart_version="$(json_string dart_version)"
 abi="$(json_string abi)"
 build_mode="$(json_string build_mode)"
+base_sha256="$(json_string base_sha256)"
+build_fingerprint="$(json_string build_fingerprint)"
+ota_protocol_version="$(sed -n 's/.*"ota_protocol_version": \([0-9][0-9]*\).*/\1/p' "$manifest" | head -1)"
 expected_hash="$(json_string sha256)"
 signature_key_id="$(json_string signature_key_id)"
 signature_algorithm="$(json_string signature_algorithm)"
@@ -35,6 +38,9 @@ patch_number="$(sed -n 's/.*"patch_number": \([0-9][0-9]*\).*/\1/p' "$manifest" 
 [[ "$engine_revision" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid engine revision" >&2; exit 2; }
 [[ "$abi" =~ ^(arm64-v8a|armeabi-v7a|x86_64)$ ]] || { echo "Invalid ABI" >&2; exit 2; }
 [[ "$build_mode" == release ]] || { echo "Only release patches are accepted" >&2; exit 2; }
+[[ "$ota_protocol_version" == 2 ]] || { echo "Unsupported OTA protocol" >&2; exit 2; }
+[[ "$base_sha256" =~ ^[0-9a-f]{64}$ ]] || { echo "Invalid base SHA-256" >&2; exit 2; }
+[[ "$build_fingerprint" =~ ^[0-9a-f]{64}$ ]] || { echo "Invalid build fingerprint" >&2; exit 2; }
 [[ "$artifact_kind" =~ ^(full_aot_library|binary_diff)$ ]] || { echo "Invalid artifact kind" >&2; exit 2; }
 [[ "$signature_key_id" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Invalid signature key id" >&2; exit 2; }
 [[ "$signature_algorithm" =~ ^(ed25519|rsa_pkcs1_sha256)$ ]] || { echo "Invalid signature algorithm" >&2; exit 2; }
@@ -60,7 +66,7 @@ adb shell content write \
 adb shell content call \
   --uri "content://$authority" \
   --method activate \
-  --arg "$release~$patch_number~$artifact_kind~$hash~$engine_revision~$dart_version~$abi~$build_mode~$signature_key_id~$signature_algorithm~$signature"
+  --arg "$release~$patch_number~$artifact_kind~$hash~$engine_revision~$dart_version~$abi~$build_mode~$ota_protocol_version~$base_sha256~$build_fingerprint~$signature_key_id~$signature_algorithm~$signature"
 
 echo "Installed patch $patch_number in app-private storage"
 echo "sha256 (final artifact): $hash"
