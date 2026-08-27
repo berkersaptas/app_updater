@@ -1,5 +1,11 @@
 # Production Server Installation
 
+> [!IMPORTANT]
+> This guide is only for the platform/infrastructure team operating the shared backend. Do not
+> install a server for every developer or Flutter application. One deployment can serve many teams,
+> applications, store versions, and Flutter versions. If you already have a backend HTTPS URL, use
+> [application onboarding](../GETTING_STARTED.md) instead.
+
 This guide deploys the App Updater backend on a Linux server behind HTTPS. It uses Docker Compose,
 a managed PostgreSQL database, and persistent filesystem storage for release, patch, and application
 logo artifacts.
@@ -195,8 +201,8 @@ Both should return `{"ok":true}`. Then perform a real acceptance flow:
 6. Make a Dart-only change and publish it with `app_updater patch android`.
 7. Verify download, staged activation, event reporting, disabling, and rollback on a test device.
 
-The complete application-side procedure and negative-path checks are in the
-[first-time end-to-end walkthrough](../README.md#first-time-user-end-to-end-walkthrough).
+The complete application-side procedure and negative-path checks are in
+[end-to-end acceptance testing](end_to_end_testing.md).
 
 ## 6. Multiple applications and Flutter versions
 

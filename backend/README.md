@@ -1,5 +1,10 @@
 # OTA backend
 
+> [!NOTE]
+> This is a backend component reference for platform operators and repository contributors.
+> Application developers connecting to an existing shared service should start with
+> [application onboarding](../GETTING_STARTED.md); they do not run this component locally.
+
 Implements `docs/production_installer_contract.md` for real: a Postgres-backed HTTP service that
 registers apps, accepts signed patch uploads, serves patch-check requests, serves artifact
 downloads, and accepts patch events. This is what replaces manual `adb shell content write` once a
@@ -52,6 +57,8 @@ production secrets, persistent storage, backups, upgrades, monitoring, and recov
 ```bash
 docker compose up --build
 ```
+
+This command is for local development. It is not part of normal application onboarding.
 
 This starts `postgres` and `backend`, published on host port `8081` by default (container port stays
 `8080`; override with `BACKEND_HOST_PORT` if `8081` is already taken on your machine — port
