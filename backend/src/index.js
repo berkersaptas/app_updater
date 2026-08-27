@@ -21,6 +21,7 @@ import { renderPage, escapeHtml } from './views/layout.js';
 import { cliRouter } from './routes/cli.js';
 
 const app = express();
+if (config.trustProxy) app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -30,10 +31,19 @@ app.use(session({
   secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 },
+  cookie: {
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.secureCookies,
+  },
 }));
 
 app.get('/healthz', (req, res) => res.json({ ok: true }));
+app.get('/readyz', asyncHandler(async (req, res) => {
+  await query('select 1');
+  res.json({ ok: true });
+}));
 
 app.use('/v1', patchCheckRouter);
 app.use('/v1', eventsRouter);

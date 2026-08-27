@@ -3,6 +3,11 @@
 App Updater is a self-hosted Android OTA system for Dart-only Flutter fixes. Native,
 plugin, Android resource, and asset changes still go through Google Play.
 
+Use this file for a quick local evaluation. For a production installation, begin with the
+[production server installation guide](docs/server_installation.md), then return to
+[the complete production onboarding order](README.md#complete-production-onboarding-order) to
+connect a developer machine, Flutter application, store release, and test device.
+
 ## Run the service
 
 For local development:
@@ -10,6 +15,7 @@ For local development:
 ```bash
 docker compose up -d --build
 curl http://localhost:8081/healthz
+curl http://localhost:8081/readyz
 ```
 
 PowerShell health check:
@@ -20,8 +26,9 @@ Invoke-WebRequest http://localhost:8081/healthz
 
 The backend runs numbered database migrations automatically on startup, including for an existing
 Postgres volume. Before production, set strong values for `SESSION_SECRET`, `ADMIN_API_KEY`, and
-the exactly 32-byte `SIGNING_MASTER_KEY`; use HTTPS and durable database/artifact backups. The
-compose defaults are development-only.
+the exactly 32-byte `SIGNING_MASTER_KEY`; use HTTPS, `TRUST_PROXY=true`, `SECURE_COOKIES=true`, and
+durable database/artifact backups. The Compose defaults are development-only and must not be
+exposed to the internet.
 
 ## Install and connect
 

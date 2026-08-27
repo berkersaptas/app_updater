@@ -45,6 +45,10 @@ Both drive the same underlying tables and the same patch validation logic
 
 ## Run it
 
+For an internet-facing deployment, use the complete
+[production server installation guide](../docs/server_installation.md). It covers HTTPS termination,
+production secrets, persistent storage, backups, upgrades, monitoring, and recovery.
+
 ```bash
 docker compose up --build
 ```
@@ -56,6 +60,10 @@ nowhere). The backend applies numbered migrations before starting, including aga
 Postgres volume. Compose's `ADMIN_API_KEY`, `SESSION_SECRET`, and `SIGNING_MASTER_KEY` defaults are
 development-only. Production must provide strong values; `SIGNING_MASTER_KEY` must be exactly 32
 UTF-8 bytes and backed up because it encrypts the managed app signers.
+
+Production HTTPS deployments behind one controlled reverse proxy should also set
+`TRUST_PROXY=true` and `SECURE_COOKIES=true`. `/healthz` checks process liveness; `/readyz` checks
+that the backend can query PostgreSQL.
 
 To reach this backend from a real Android device over USB instead of an emulator, forward the
 device's `localhost:8080` (what `OtaUpdateConfig.baseUrl` in `MainActivity.kt` uses) to the host's

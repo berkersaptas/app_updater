@@ -30,6 +30,8 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-me}
       ALLOW_FULL_AOT_LIBRARY: ${ALLOW_FULL_AOT_LIBRARY:-false}
       SIGNING_MASTER_KEY: "${SIGNING_MASTER_KEY:-dev-signing-master-key-32-bytes!}"
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
     ports:
       - "${BACKEND_HOST_PORT:-8081}:8080"
     volumes:

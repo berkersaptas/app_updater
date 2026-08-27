@@ -5,8 +5,8 @@ FROM node:20-slim
 
 WORKDIR /app
 
-COPY backend/package.json ./
-RUN npm install --omit=dev
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --omit=dev
 
 COPY backend/src ./src
 COPY backend/migrations ./migrations
