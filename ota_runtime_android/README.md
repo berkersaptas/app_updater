@@ -94,9 +94,9 @@ object storage, or similar) is not set up yet — this only proves the packaging
 consumer (including `app_updater` and `sample_app` today) needs `maven-repo/`'s location added
 to its own root Gradle `repositories {}` until real hosting exists — see `docs/next_steps.md`.
 
-## Shorebird alignment
+## Production OTA lifecycle
 
-This module is aligned with Shorebird's Android direction at the lifecycle level:
+This module implements the following Android OTA lifecycle guarantees:
 
 - release-bound patches
 - Dart-code-only patch scope
@@ -105,7 +105,7 @@ This module is aligned with Shorebird's Android direction at the lifecycle level
 - last-known-good behavior
 - signed patch support
 
-Shorebird Android patch artifacts are diffs applied against release artifacts. This module supports
+Android production patch artifacts are diffs applied against exact release artifacts. This module supports
 both `artifact_kind`s through the same `PatchArtifactResolver` abstraction, without changing the
 app-facing runtime API:
 

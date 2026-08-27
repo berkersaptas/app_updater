@@ -2,11 +2,11 @@
 
 Status: contract skeleton only.
 
-This module exists to keep the project aligned with Shorebird's iOS architecture direction. It does
-not implement runtime patch execution yet.
+This module preserves a platform-safe iOS contract boundary. It does not implement runtime patch
+execution yet.
 
 The iOS adapter must not copy Android's `libapp.so` replacement model. The intended direction is a
-Shorebird-style interpreted Dart patch payload with linker metadata that allows unchanged code to
+interpreted Dart patch payload with linker metadata that allows unchanged code to
 continue running from the signed store binary.
 
 Shared pieces:

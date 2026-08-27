@@ -65,7 +65,7 @@ published port:
 adb reverse tcp:8080 tcp:8081
 ```
 
-By default the backend rejects `full_aot_library` uploads and accepts only Shorebird-style
+By default the backend rejects `full_aot_library` uploads and accepts only release-bound
 `binary_diff` patches. This is the safe Play/production posture. Local POC tests that deliberately
 exercise whole-`.so` replacement may opt in with `ALLOW_FULL_AOT_LIBRARY=true`; do not enable it on
 a Google Play/production backend. See `docs/google_play_compliance.md`.

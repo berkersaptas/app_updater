@@ -5,7 +5,7 @@ registers immutable releases and publishes managed-signing binary diffs; `OtaUpd
 patch-check, download, verification, staging, next-launch activation, and event reporting. iOS code
 push is intentionally out of scope — see `docs/ios_runtime_decision.md`.
 
-This contract keeps the project aligned with Shorebird's updater model: the runtime checks for a
+This contract defines the updater model: the runtime checks for a
 release-bound patch, downloads a patch artifact, validates it, stages it, activates it for the next
 launch, and records success or failure.
 
@@ -99,7 +99,7 @@ packaged store artifact is selected on the next cold launch. Backend unavailabil
 rollback; an explicit authenticated disable/revoke action is required.
 
 `artifact_kind` is part of the signed manifest payload. Android implements both artifact kinds,
-but Play/production ingestion accepts only Shorebird-style `binary_diff`; `full_aot_library` is a
+but Play/production ingestion accepts only release-bound `binary_diff`; `full_aot_library` is a
 double-opt-in local POC path. See `google_play_compliance.md`. iOS uses the separate
 `interpreted_dart_patch` schema because it must not load Android-style AOT shared libraries.
 

@@ -1,6 +1,6 @@
 # Getting started
 
-App Updater is a self-hosted, Shorebird-style Android OTA system for Dart-only Flutter fixes. Native,
+App Updater is a self-hosted Android OTA system for Dart-only Flutter fixes. Native,
 plugin, Android resource, and asset changes still go through Google Play.
 
 ## Run the service

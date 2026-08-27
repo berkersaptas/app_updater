@@ -10,16 +10,15 @@ production-shaped and device-verified end to end (see `architecture_and_remainin
 
 ### Why
 
-This project is a self-hosted, internally-run replacement for Shorebird to manage ~30-40 company
-Flutter apps (see project memory `project_purpose_and_motivation.md`) — it is infrastructure for one
-team, not a platform product. Research into Shorebird's actual iOS mechanism (below) showed that
-replicating it is not a proportionate investment for that goal:
+This project is self-hosted infrastructure for managing ~30-40 company Flutter apps (see project
+memory `project_purpose_and_motivation.md`), not a platform product. Research into a
+production-grade iOS mechanism showed that implementing it is not a proportionate investment for
+that goal:
 
 - Apple's App Store policy forbids downloading and executing new *compiled* machine code at runtime;
-  it permits *interpreted* code. Shorebird's iOS path exists specifically to work within that
-  constraint — there is no shortcut around it; any iOS Dart-patching approach has to solve the same
-  problem.
-- Shorebird's solution is a custom Dart bytecode interpreter plus a per-function linker (decides
+  it permits *interpreted* code. There is no shortcut around that constraint; any iOS Dart-patching
+  approach has to solve the same problem.
+- A viable solution requires a custom Dart bytecode interpreter plus a per-function linker (decides
   which unchanged functions keep running as compiled code from the signed binary, vs. which
   changed functions run interpreted), integrated into a forked Dart SDK and Flutter engine. Typically
   98%+ of code still runs compiled; only changed functions are interpreted.
@@ -27,10 +26,8 @@ replicating it is not a proportionate investment for that goal:
   linker is private. There is no public implementation to build on — it would have to be written from
   scratch: a new language runtime (bytecode interpretation, calling conventions, exception handling,
   async/isolate semantics, GC interop, native/FFI bridging) integrated with Flutter Engine internals.
-- Shorebird itself rated this approach "Hard" in their own public design notes
-  (`NOTES_ON_CODEPUSH.md`), among several options they evaluated. They built it with a founding team
-  that includes Flutter's own creator/former director (Eric Seidel) and other core Flutter
-  contributors, backed by venture funding, over a period of years.
+- This is a multi-year runtime and compiler engineering effort with a much larger risk profile than
+  the rest of this project.
 - Everything built in this project so far (Android AOT-swap runtime, binary diffing, signing,
   backend, resumable downloads) is "combine existing, well-understood pieces" engineering — days to
   weeks of work each. A correctness-critical language interpreter is a different category of risk and
@@ -51,15 +48,14 @@ replicating it is not a proportionate investment for that goal:
 
 ## Original analysis (superseded by the decision above, kept for context)
 
-Decision: iOS must follow a Shorebird-style interpreted patch architecture. It must not reuse the
+Decision: iOS would require an interpreted patch architecture. It must not reuse the
 Android `libapp.so` replacement model.
 
 ## Context
 
-The project is explicitly Shorebird-aligned. Shorebird supports Dart code patching on iOS, but its
-iOS mechanism is different from Android because of Apple policy and technical restrictions. The
-public Shorebird architecture describes an interpreted modified Dart output format and linker logic
-that lets unchanged code continue to execute from the signed app binary.
+An iOS mechanism must differ from Android because of Apple policy and technical restrictions. The
+required design uses an interpreted Dart output format and linker logic that lets unchanged code
+continue to execute from the signed app binary.
 
 That means this project's iOS adapter should preserve the same high-level release/patch/lifecycle
 contract as Android, while using a different artifact class.
@@ -97,8 +93,8 @@ The first contract artifact for this is `ota_core/ios_interpreted_patch.schema.j
 inside the same platform-neutral OTA family without importing Android's AOT shared-library loading
 mechanism.
 
-This mirrors Shorebird's conceptual iOS approach without pretending the Android proof already solves
-iOS.
+This preserves the required iOS execution boundary without pretending the Android proof already
+solves iOS.
 
 ## Required open questions
 
@@ -116,7 +112,7 @@ patches until the interpreter/linker artifact format is defined.
 
 The skeleton should contain:
 
-- README with Shorebird-style constraints
+- README with platform-safe constraints
 - manifest/status model mapped from `ota_core`
 - placeholder patch artifact type
 - iOS interpreted patch JSON schema
@@ -130,4 +126,4 @@ The skeleton should contain:
 - Treating iOS as asset/config-only while still calling it Dart code patching.
 
 Asset/config-only updates may exist as a separate product capability, but they are not the
-Shorebird-style Dart code patching path.
+interpreted Dart code patching path.

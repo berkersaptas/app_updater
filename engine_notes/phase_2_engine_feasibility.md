@@ -6,7 +6,7 @@ ahead of implementing `binary_diff` (workstream 2E).
 ## Question
 
 Does moving the Android production artifact from `full_aot_library` (whole `libapp.so` replacement)
-to `binary_diff` (Shorebird-style patch) require forking the Flutter engine or Android embedding?
+to `binary_diff` require forking the Flutter engine or Android embedding?
 
 ## Answer: no engine fork is required
 
@@ -54,7 +54,7 @@ it is a device/AGP-version-sensitive default, not a hard guarantee.
 ### Diff format
 
 Use a bsdiff/bspatch-style algorithm — the standard choice for binary patching of similar binaries
-across versions, and the general family Shorebird's own patch tooling is publicly documented to use.
+across versions and widely used for compact release-to-release binary patching.
 Two different implementations are needed for two different constraints:
 
 - **Diff generation** happens once, at build time, in `scripts/build_patch.sh`, on a developer/CI

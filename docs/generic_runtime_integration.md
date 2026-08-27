@@ -19,9 +19,8 @@ app_updater      Flutter/Dart package wrapping the above — what Flutter apps s
 
 **Flutter apps should depend on `app_updater`, not `ota_runtime_android` directly.** A raw
 native Android library requiring hand-edited `MainActivity.kt`/`AndroidManifest.xml`/
-`build.gradle.kts` wiring is not how Flutter packages are normally consumed — Shorebird itself ships
-as a pub package (`shorebird_code_push`) with a Dart API, not a native library app developers wire
-in by hand. `app_updater/README.md` is the integration guide; this document describes the
+`build.gradle.kts` wiring is not how Flutter packages are normally consumed. `app_updater/README.md`
+is the integration guide; this document describes the
 underlying contract both layers are built on, for anyone building a second Dart wrapper (e.g. an iOS
 one) or working on `ota_runtime_android` itself.
 

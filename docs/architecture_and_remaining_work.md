@@ -4,7 +4,7 @@ Status: living project map.
 
 This document summarizes what the project currently does, what it intentionally does not do yet,
 and the remaining work required to move from the Android proof-of-concept toward a
-Shorebird-aligned production architecture.
+production-oriented OTA architecture.
 
 ## Executive summary
 
@@ -69,7 +69,7 @@ scripts/
   Build, extract, manifest, signing, installation, and acceptance helpers.
 
 docs/
-  Phase plans, Shorebird alignment notes, key management, production installer contract, and runtime
+  Phase plans, OTA architecture principles, key management, production installer contract, and runtime
   decisions.
 
 engine_notes/
@@ -155,7 +155,7 @@ Current artifact kinds:
 Current signature algorithms:
 
 - `ed25519`: default POC/dev path.
-- `rsa_pkcs1_sha256`: Shorebird-aligned RSA/KMS-compatible path.
+- `rsa_pkcs1_sha256`: RSA/KMS-compatible production path.
 
 ## Android runtime modules
 
@@ -169,7 +169,7 @@ Important classes:
 - `PatchSignatureVerifier`: Ed25519 and RSA PKCS#1 SHA-256 verification.
 - `PatchArtifactResolver`: artifact abstraction boundary.
 - `FullAotLibraryArtifactResolver`: runnable local POC resolver; backend-disabled by default.
-- `BinaryDiffArtifactResolver`: implemented Shorebird-style Android production resolver.
+- `BinaryDiffArtifactResolver`: implemented release-bound Android production resolver.
 - `OtaInstallProvider`: debug/test-only shell ingress for acceptance testing.
 
 ## Lifecycle model
@@ -259,7 +259,7 @@ This is intentional. The current project first proves the OTA shell around patch
 - bad-patch rejection;
 - Android boot-time artifact selection.
 
-Real Shorebird-style Dart code patching still requires deeper engine/runtime work.
+Production-grade Dart code patching still requires deeper engine/runtime work.
 
 Open engine questions:
 
@@ -270,7 +270,7 @@ Open engine questions:
 - How are patch artifacts generated from release artifacts?
 - How should base release artifacts be stored or reconstructed for patch apply?
 - How does the iOS interpreted Dart path integrate with runtime/linker support?
-- Which parts can be reused from public Shorebird concepts, and which parts require independent
+- Which existing project contracts can be reused, and which parts require independent
   implementation?
 
 ## What is proven
@@ -478,8 +478,8 @@ user feedback that this had to be consumable as a Flutter package, not a raw nat
 - **Real finding #2, a course correction:** the first cut of this phase published
   `ota_runtime_android` as a raw Android library and stopped there — a Flutter app developer would
   still need to hand-edit `MainActivity.kt`, `AndroidManifest.xml`, and `build.gradle.kts` three
-  separate ways to use it. That is not how Flutter packages are consumed, and not how Shorebird ships
-  (`shorebird_code_push` is a normal pub package with a Dart API). Added `app_updater/`, a real
+  separate ways to use it. That is not how Flutter packages are normally consumed. Added
+  `app_updater/`, a real
   Flutter plugin: `pubspec.yaml`-installable, Dart-facing (`AppUpdater.autoUpdate`/
   `checkForUpdate`/`markBootSuccess`/`status`), with `FlutterOtaActivity` absorbing the one native
   touch point that cannot move to Dart (the patched-artifact-before-engine-start requirement). See

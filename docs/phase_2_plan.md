@@ -6,9 +6,9 @@ OTA architecture.
 ## Goals
 
 - Preserve the shared `ota_core` contract across platforms.
-- Keep the architecture Shorebird-aligned: release/patch/updater lifecycle, Dart-code-only patches,
+- Keep the architecture production-oriented: release/patch/updater lifecycle, Dart-code-only patches,
   bad-patch quarantine, and platform-specific patch execution.
-- Apply the Shorebird iOS direction: interpreted Dart patch payload plus linker metadata, not
+- Apply the platform-safe iOS direction: interpreted Dart patch payload plus linker metadata, not
   Android-style AOT binary replacement.
 - Replace shell-only patch ingress with a production installer/update-client contract.
 - Replace local PEM signing with production key custody.
@@ -17,9 +17,9 @@ OTA architecture.
 
 ## Workstreams
 
-### 1. Shorebird alignment and iOS feasibility
+### 1. OTA architecture and iOS feasibility
 
-Use [shorebird_alignment.md](shorebird_alignment.md) and
+Use [ota_architecture_principles.md](ota_architecture_principles.md) and
 [ios_runtime_decision.md](ios_runtime_decision.md) as the governing documents.
 
 **Final decision (2026-08-18): iOS Dart code-push is out of scope for this project.** See
@@ -122,7 +122,7 @@ integration. It should define those contracts clearly enough that Phase 3 can im
 Phase 2 is complete when:
 
 - iOS support direction is decided and documented;
-- Android and iOS docs explicitly state their Shorebird-aligned differences;
+- Android and iOS docs explicitly state their platform-specific differences;
 - production installer and signer contracts are documented;
 - Android runtime is package-shaped rather than only source-included;
 - test coverage includes contract-level checks outside the single device acceptance script;

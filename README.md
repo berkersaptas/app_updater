@@ -1,6 +1,6 @@
 # App Updater for Flutter
 
-App Updater is a self-hosted, Shorebird-style OTA update system for Dart-only fixes in Android
+App Updater is a self-hosted OTA update system for Dart-only fixes in Android
 Flutter applications. Native code, plugins, Android resources, assets, and new store versions still
 go through Google Play. iOS code push is intentionally out of scope; iOS releases continue through
 App Store Connect and TestFlight.

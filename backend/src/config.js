@@ -13,7 +13,7 @@ export const config = {
   adminApiKey: required('ADMIN_API_KEY'),
   artifactStorageDir: process.env.ARTIFACT_STORAGE_DIR ?? '/data/artifacts',
   sessionSecret: required('SESSION_SECRET'),
-  // Safe-by-default Play/production posture: only Shorebird-style binary diffs may be uploaded.
+  // Safe-by-default Play/production posture: only release-bound binary diffs may be uploaded.
   // Local POC environments that deliberately exercise whole-libapp replacement must opt in.
   allowFullAotLibrary: fullAotLibraryAllowedFromEnv(),
   signingMasterKey: required('SIGNING_MASTER_KEY'),

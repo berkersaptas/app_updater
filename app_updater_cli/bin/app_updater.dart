@@ -21,7 +21,7 @@ const _repoUrl = 'https://github.com/berkersaptas/app_updater.git';
 Future<void> main(List<String> arguments) async {
   final runner = CommandRunner<void>(
     'app_updater',
-    'Wire up and publish patches for a self-hosted, Shorebird-style OTA-updated Flutter app.',
+    'Wire up and publish patches for a self-hosted OTA-updated Flutter app.',
   )
     ..addCommand(LoginCommand())
     ..addCommand(LogoutCommand())

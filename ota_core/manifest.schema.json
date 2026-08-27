@@ -42,7 +42,7 @@
     "artifact_kind": {
       "type": "string",
       "enum": ["full_aot_library", "binary_diff"],
-      "description": "Patch artifact strategy. The POC loads full_aot_library; Shorebird-style Android production should move to binary_diff."
+      "description": "Patch artifact strategy. Local proof builds may load full_aot_library; Android production uses binary_diff."
     },
     "engine_revision": {
       "type": "string",

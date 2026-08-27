@@ -1,9 +1,9 @@
 # app_updater
 
-Self-hosted, Shorebird-style OTA code push for Flutter — as a normal Flutter/Dart package, not a
+Self-hosted OTA code push for Flutter — as a normal Flutter/Dart package, not a
 native Android library you wire in by hand. This wraps `ota_runtime_android` (device-side patch
 selection, verification, lifecycle) and `backend/` (the production installer contract) behind a
-Dart API, the same way `shorebird_code_push` wraps Shorebird's own native/engine machinery.
+Dart API with the native/runtime machinery hidden behind the plugin boundary.
 
 **One config file, no platform-specific editing.** Add the `pubspec.yaml` dependency, write one
 `app_updater.yaml` at your Flutter project root, and one native one-liner
@@ -59,7 +59,7 @@ compiles directly. No additional package repository or app-level repository edit
 Android's Flutter embedding needs the patched AOT library path *before* the Flutter engine (and
 therefore the Dart VM, and therefore this package's own platform channel) exists. That single
 requirement can't be satisfied from Dart, or from build-time codegen, no matter how the rest of this
-package is shipped — it's the same reason Shorebird needs engine/CLI-level hooks, not just a pub
+package is shipped — startup-time AOT selection requires engine/embedding hooks, not just a pub
 package. Concretely, extend `FlutterOtaActivity` instead of `FlutterActivity`:
 
 ```kotlin
@@ -86,8 +86,8 @@ void main() {
 
 No arguments needed — `autoUpdate()` reports boot success and checks for an update, in the correct
 order, exactly once, after the first frame renders, using `app_slug`/`backend_url` from
-`app_updater.yaml`. This is the one-call equivalent of what Shorebird's `ShorebirdUpdater` gives
-you. Pass `baseUrl`/`appSlug` explicitly only to override the config file for a specific call (e.g.
+`app_updater.yaml`. Pass `baseUrl`/`appSlug` explicitly only to override the config file for a
+specific call (e.g.
 pointing a debug build at a different backend).
 
 Expected lifecycle: the release continues running while a patch is staged, and the patch is
@@ -111,8 +111,8 @@ counts) for a debug screen or telemetry.
   `docs/ios_runtime_decision.md`. `app_updater.yaml` is designed to be platform-agnostic so an
   iOS equivalent of the Gradle codegen (an Xcode build phase script, most likely) can consume the
   exact same file without a second config format.
-- Does not eliminate the one native `FlutterOtaActivity` subclass, and cannot, without also forking
-  the Flutter engine/CLI the way Shorebird does (explicitly out of scope for this project — see
-  `docs/shorebird_alignment.md`).
+- Does not eliminate the one native `FlutterOtaActivity` subclass; removing that requirement would
+  require a custom Flutter engine/CLI and is explicitly out of scope. See
+  `docs/ota_architecture_principles.md`.
 - The current distribution is a public git path dependency. The building machine only needs network
   access to clone this repository; no additional dependency service must be configured.

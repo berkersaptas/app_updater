@@ -6,7 +6,8 @@ Phase 1 is complete. See [phase_1_completion.md](phase_1_completion.md). Phase 2
 The current architecture and remaining work are summarized in
 [architecture_and_remaining_work.md](architecture_and_remaining_work.md).
 
-The project should remain Shorebird-aligned. See [shorebird_alignment.md](shorebird_alignment.md)
+The project should remain release-bound and production-oriented. See
+[ota_architecture_principles.md](ota_architecture_principles.md)
 and [ios_runtime_decision.md](ios_runtime_decision.md).
 The production updater flow is drafted in
 [production_installer_contract.md](production_installer_contract.md).
@@ -18,12 +19,11 @@ Phases 2A, 2B, 2C, 2D, and 2E are all done (2026-08-17) — see
 and device-verification evidence.
 
 **iOS Dart code-push is out of scope (final decision, 2026-08-18)** — see
-`ios_runtime_decision.md`'s "Final decision" section. Replicating Shorebird's iOS mechanism means
-writing a Dart bytecode interpreter and linker from scratch (Shorebird's own Dart SDK fork containing
-it is private, not something to build on); Shorebird itself rates this "Hard" and built it with
-Flutter's own creator on a funded team over years. Not a proportionate investment for a ~30-40-app
-internal tool. Android is the only OTA platform going forward; iOS apps ship through the normal App
-Store/TestFlight cycle. Phase 2F and `ota_runtime_ios` are retired from the active roadmap.
+`ios_runtime_decision.md`'s "Final decision" section. A compliant implementation would require a
+Dart bytecode interpreter and per-function linker integrated with Flutter engine internals. That is
+not a proportionate investment for a ~30-40-app internal tool. Android is the only OTA platform
+going forward; iOS apps ship through the normal App Store/TestFlight cycle. Phase 2F and
+`ota_runtime_ios` are retired from the active roadmap.
 
 **Flutter apps integrate via `app_updater` (a real Flutter plugin package) with a single
 platform-agnostic config file, not `ota_runtime_android` directly and not per-platform manifest
@@ -53,7 +53,7 @@ number and signing key auto-detected from `app_updater.yaml` and the backend whe
 one sensible choice. The current implementation performs archive inspection, Dart-only comparison,
 manifest generation, and binary-diff orchestration through Dart and the JDK, so it runs natively on
 Windows, macOS, and Linux after global activation. This is the
-closest analog to Shorebird's own `shorebird patch` UX. See `app_updater_cli/README.md`. Verified end
+single-command patch workflow. See `app_updater_cli/README.md`. Verified end
 to end against a live Docker backend: registered a fresh app + RSA key via the admin API, ran
 `app_updater publish` from a copy of `sample_app` outside this repo (pointed at the plugin via an
 absolute `path:` dependency to simulate an external project), and confirmed the backend accepted
@@ -128,7 +128,7 @@ signature metadata) to differ; manifest, DEX, native/plugin libraries, resources
 changes fail with a store-release instruction. The backend independently rejects
 `full_aot_library` by default so portal/direct API uploads cannot bypass the CLI policy. Whole-`.so`
 replacement survives only as a double opt-in local POC path (`--allow-full-aot-library` plus
-`ALLOW_FULL_AOT_LIBRARY=true`). See `docs/google_play_compliance.md` for the Shorebird-aligned Dart
+`ALLOW_FULL_AOT_LIBRARY=true`). See `docs/google_play_compliance.md` for the Dart
 VM policy rationale and publisher responsibility boundary.
 
 **Connected release lifecycle and managed signing are done (2026-08-21):** the recommended path is

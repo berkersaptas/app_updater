@@ -8,11 +8,9 @@ Google Play's Device and Network Abuse policy generally prohibits an app from up
 downloading executable code outside Google Play. The same policy contains an exception for code
 that runs in a virtual machine or interpreter providing indirect access to Android APIs.
 
-Shorebird publicly relies on that exception: patched Dart code runs through the Dart VM. Its
-Android release artifacts contain architecture-specific `libapp.so` files, while patch artifacts
-are binary diffs against those release artifacts. This project follows the same narrow Android
-model: only Dart's AOT `libapp.so` may differ, the device downloads a diff, reconstructs the
-release-bound Dart artifact locally, and the Flutter engine's Dart VM runs it.
+This project uses a narrow Android model built around that exception: only Dart's AOT `libapp.so`
+may differ, the device downloads a binary diff, reconstructs the release-bound Dart artifact
+locally, and the Flutter engine's Dart VM runs it.
 
 Authoritative/current references:
 
@@ -20,10 +18,6 @@ Authoritative/current references:
   https://support.google.com/googleplay/android-developer/answer/16559646
 - Android dynamic code loading security guidance:
   https://developer.android.com/privacy-and-security/risks/dynamic-code-loading
-- Shorebird Store Compliance FAQ:
-  https://docs.shorebird.dev/code-push/faq/#store-compliance
-- Shorebird Code Push artifact model:
-  https://docs.shorebird.dev/code-push/
 
 This is a technical and policy rationale, not a Google certification or guarantee. The Play
 publisher remains responsible for each app and every patch.

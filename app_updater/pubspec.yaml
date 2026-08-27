@@ -1,6 +1,6 @@
 name: app_updater
 description: >
-  Self-hosted Shorebird-style OTA code push for Flutter (Android). Wraps ota_runtime_android and
+  Self-hosted OTA code push for Flutter (Android). Wraps ota_runtime_android and
   the backend/ production installer contract behind a Dart API.
 version: 0.1.0
 publish_to: 'none'

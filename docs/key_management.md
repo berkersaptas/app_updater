@@ -19,10 +19,10 @@ and the old `app_updater publish` command are legacy/POC paths. The current encr
 is suitable for controlled pilots; production deployment should replace the environment master key
 and decrypt-in-process signer with KMS/HSM-backed envelope encryption or remote signing.
 
-## Shorebird signing alignment
+## Production signing model
 
-Shorebird's public patch-signing docs describe RSA PEM keys and command-based signing for KMS/HSM
-systems. This project now supports both the compact Ed25519 POC path and the Shorebird-aligned
+Production signing commonly uses RSA PEM keys and command-based signing for KMS/HSM systems. This
+project supports both the compact Ed25519 proof path and the RSA/KMS-compatible
 `rsa_pkcs1_sha256` verification path on Android.
 
 Signer modes:

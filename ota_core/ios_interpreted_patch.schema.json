@@ -17,7 +17,7 @@
     },
     "artifact_kind": {
       "const": "interpreted_dart_patch",
-      "description": "Shorebird-style iOS patch payload; this is not a dylib/framework replacement contract."
+      "description": "Interpreted iOS patch payload; this is not a dylib/framework replacement contract."
     },
     "patch_number": {
       "type": "integer",
