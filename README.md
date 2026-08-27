@@ -12,116 +12,43 @@ binary diff, signs the patch manifest, and activates the verified patch on the n
 > changes, and Dart SDK changes cannot be delivered as OTA patches. Publish a new Google Play
 > release for those changes.
 
-## Start here: first installation
+## Start here
 
-You do not need to read this README from beginning to end. Choose the path that matches what you
-are trying to do:
+The whole system has only three stages:
 
-| Goal | Start with | Continue with |
-|---|---|---|
-| Evaluate everything on one computer | [Local development setup](#local-development-setup) | [Connect a Flutter application](#connect-a-flutter-application) |
-| Install the production server | [Production server installation](docs/server_installation.md) | [Production checklist](#production-checklist) |
-| Connect an application to an existing server | [Install and log in to the CLI](#3-install-the-cli) | [Connect a Flutter application](#connect-a-flutter-application) |
-| Validate server, application, and a real device together | [First-time end-to-end walkthrough](#first-time-user-end-to-end-walkthrough) | [Tests](#tests) |
-| Publish the next Google Play version | [Publish a store release](#publish-a-store-release) | [Move to a new store version](#move-to-a-new-store-version) |
-| Ship a Dart-only fix | [Publish a Dart-only patch](#publish-a-dart-only-patch) | [Device lifecycle](#device-lifecycle) |
+1. **Install one server.** It stores applications, releases, and patches.
+2. **Connect each Flutter application once.** The CLI adds the updater and downloads its public
+   configuration.
+3. **Register every store release; publish patches when needed.** Each patch stays tied to the exact
+   AAB uploaded to Google Play.
 
-### Complete production onboarding order
+### First production setup
 
-The system is installed in three places: the backend server, the developer's Flutter environment,
-and the Android application. Follow these phases in order.
+Follow these steps in order:
 
-#### Phase 1 — Install the backend once per environment
+1. [Install the production server](docs/server_installation.md). The result is an HTTPS address such
+   as `https://updates.example.com`. Flutter and Dart are not installed on the server.
+2. Open that address, create a portal account, and then run
+   `app_updater login --backend-url https://updates.example.com` on your development machine.
+3. Open the Flutter project and [connect the application](#connect-a-flutter-application) with
+   `app_updater init --create`.
+4. Before sending a version to Google Play, run
+   [`app_updater release android`](#publish-a-store-release) and upload the exact AAB it prints.
+5. For a later Dart-only fix to that version, run
+   [`app_updater patch android`](#publish-a-dart-only-patch).
 
-The server administrator follows the
-[production server installation guide](docs/server_installation.md). It covers Linux prerequisites,
-Docker Compose, PostgreSQL, persistent artifact storage, secrets, DNS, Nginx/HTTPS, backups,
-monitoring, upgrades, and recovery.
+Finally, use the [end-to-end walkthrough](#first-time-user-end-to-end-walkthrough) once with a test
+application and device. After that, the normal workflow is only `release` for a new store version
+and `patch` for a compatible Dart-only fix.
 
-The production result must be a public HTTPS URL such as `https://updates.example.com`. Verify it
-before onboarding an application:
+### Local trial instead
 
-```bash
-curl --fail https://updates.example.com/healthz
-curl --fail https://updates.example.com/readyz
-```
-
-Both endpoints must return `{"ok":true}`. Flutter, Dart, Android SDK, and Java are **not** installed
-on this server. One backend can serve multiple applications and Flutter versions; each application's
-own developer/CI environment builds its release and patch artifacts.
-
-For a local evaluation instead of production, use the shorter
-[local development setup](#local-development-setup). Do not expose its default passwords or plain
-HTTP service to the internet.
-
-#### Phase 2 — Prepare each developer or CI machine once
-
-Install Flutter, Dart, Git, Android SDK, and a JDK, then
-[install the CLI](#3-install-the-cli). Create an account in the server's web portal and authenticate:
-
-```bash
-app_updater login --backend-url https://updates.example.com
-```
-
-The CLI and Flutter toolchain belong on the developer machine or CI runner. Pin the Flutter version
-used by each application. Detailed prerequisites and PATH instructions are in
-[Local development setup](#local-development-setup).
-
-#### Phase 3 — Connect each Flutter application once
-
-From the Flutter project root, either create a backend application:
-
-```bash
-app_updater init \
-  --create \
-  --app-slug my-app-android \
-  --package-name com.company.my_app
-```
-
-Or connect to an application that an owner already created in the portal:
-
-```bash
-app_updater init --app-slug my-app-android
-```
-
-Review the generated `app_updater.yaml` and source changes, then run the verification commands in
-[Connect a Flutter application](#connect-a-flutter-application). No private signing key is copied
-into the Flutter repository.
-
-#### Phase 4 — Register and publish every new store release
-
-Before uploading a new application version to Google Play, run:
-
-```bash
-app_updater release android
-```
-
-Upload the **exact AAB path printed by this command** to Google Play. This is mandatory: the backend
-stores that AAB as the immutable base used to create and verify future patches. See
-[Publish a store release](#publish-a-store-release) for signing, ABI, and CI options.
-
-#### Phase 5 — Publish a Dart-only patch when needed
-
-Keep the same store version, make only a supported Dart change, and run:
-
-```bash
-app_updater patch android
-```
-
-Native, plugin, manifest, permission, resource, asset, Flutter, or Dart SDK changes require another
-store release. See [Publish a Dart-only patch](#publish-a-dart-only-patch) for the validation and
-activation behavior.
-
-#### Phase 6 — Prove the complete flow before production use
-
-Use a test application and device to verify base registration, patch staging, next-launch
-activation, negative compatibility cases, disablement, and rollback. Follow the
-[first-time end-to-end walkthrough](#first-time-user-end-to-end-walkthrough) and do not treat setup
-as complete until its [acceptance criteria](#acceptance-completion-criteria) pass.
+If you only want to try the system on one computer, skip production server installation and follow
+the [short local setup](GETTING_STARTED.md).
 
 ## Contents
 
-- [Start here: first installation](#start-here-first-installation)
+- [Start here](#start-here)
 - [Supported scope](#supported-scope)
 - [Architecture](#architecture)
 - [Security and compatibility model](#security-and-compatibility-model)

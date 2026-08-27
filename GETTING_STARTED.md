@@ -5,7 +5,7 @@ plugin, Android resource, and asset changes still go through Google Play.
 
 Use this file for a quick local evaluation. For a production installation, begin with the
 [production server installation guide](docs/server_installation.md), then return to
-[the complete production onboarding order](README.md#complete-production-onboarding-order) to
+[the first production setup](README.md#first-production-setup) to
 connect a developer machine, Flutter application, store release, and test device.
 
 ## Run the service
